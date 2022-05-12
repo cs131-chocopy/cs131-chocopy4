@@ -127,7 +127,8 @@ IntegerType *IntegerType::get(unsigned num_bits, Module *m) { return new Integer
 
 unsigned IntegerType::get_num_bits() const { return num_bits_; }
 
-FunctionType::FunctionType(Type *result, const std::vector<Type *> &params) : Type(Type::type::FUNC, nullptr) {
+FunctionType::FunctionType(Type *result, const std::vector<Type *> &params)
+    : Type(Type::type::FUNC, result->get_module()) {
     result_ = result;
     for (auto p : params) {
         args_.push_back(p);
@@ -257,5 +258,10 @@ string VectorType::print_as_op() {
 StringType *StringType::get(string str_, Module *m) { return new StringType(std::move(str_), m); }
 StringType::StringType(string str_, Module *m) : Type(Type::type::STRING, m), str_(std::move(str_)) {}
 string StringType::get_string() const { return str_; }
+
+LabelType *LabelType::get(string str_, Class *stored_, Module *m) { return new LabelType(std::move(str_), stored_, m); }
+LabelType::LabelType(string label_, Class *stored_, Module *m)
+    : Type(Type::type::LABEL, m), label_(std::move(label_)),stored_(stored_) {}
+string LabelType::get_label() const { return label_; }
 
 } // namespace lightir

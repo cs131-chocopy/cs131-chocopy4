@@ -15,6 +15,8 @@
 #include "GlobalVariable.hpp"
 #include "Type.hpp"
 #include "Value.hpp"
+#include <chocopy_logging.hpp>
+#include <iterator>
 #include <list>
 #include <map>
 #include <memory>
@@ -218,9 +220,11 @@ private:
 class CallInst : public Instruction {
 protected:
     CallInst(Function *func, vector<Value *> args, BasicBlock *bb);
+    CallInst(Value *real_func, FunctionType *func, vector<Value *> args, BasicBlock *bb);
 
 public:
     static CallInst *create(Function *func, vector<Value *> args, BasicBlock *bb);
+    static CallInst *create(Value *real_func, FunctionType *func, std::vector<Value *> args, BasicBlock *bb);
     FunctionType *get_function_type() const;
 
     string print() override;
@@ -270,9 +274,11 @@ public:
 class LoadInst : public Instruction {
 private:
     LoadInst(Type *ty, Value *ptr, BasicBlock *bb);
+    LoadInst(Value *ptr1, Value *ptr2, BasicBlock *bb);
 
 public:
     static LoadInst *create_load(Type *ty, Value *ptr, BasicBlock *bb);
+    static LoadInst *create_load(Value *ptr1, Value *ptr2, BasicBlock *bb);
     Value *get_lval() { return this->get_operand(0); }
 
     Type *get_load_type() const;
@@ -386,7 +392,7 @@ public:
     string print() override;
 
 private:
-    Value *idx;
+    Value *idx{};
     Type *element_ty_;
 };
 
@@ -476,7 +482,7 @@ private:
 class Accstart : public Instruction {
     /** %thread_id = MTSTART %num_threads */
 private:
-    Accstart(Module *m);
+    explicit Accstart(Module *m);
 
 public:
     Accstart *create_accstart(Module *m);

@@ -50,17 +50,17 @@ public:
     vector<AttrInfo *> *attributes_ = new vector<AttrInfo *>();
     vector<Function *> *methods_ = new vector<Function *>();
 
-    int type_tag_;
+    int type_tag_{};
     string prototype_label_;
     string dispatch_table_label_;
     bool anon_ = false;
 
     Class(Module *m, const string &name_, int type_tag, Class *super_class_info, bool with_dispatch_table_ = true,
-          bool print_dispatch_table_ = false);
+          bool print_dispatch_table_ = false,bool is_append=true);
     Class(Module *m, const string &name_, bool anon_);
 
     void add_attribute(AttrInfo *attrInfo) const { this->attributes_->emplace_back(attrInfo); }
-    void add_method(Function *func) const;
+    void add_method(Function *func);
 
 
     int get_size() override {
@@ -93,6 +93,7 @@ public:
                                           [&attribute](AttrInfo *tmp) { return tmp->get_name() == attribute; }));
     }
     int get_method_offset(string method) const;
+    // FIXME:return prototype if it's passed to alloc
     virtual string print() override {
         return anon_ ? fmt::format("%$class.anon_{}", this->get_name())
                      : (print_dispatch_table_ ? fmt::format("%{}_type", this->dispatch_table_label_)
@@ -101,10 +102,10 @@ public:
 
     string print_class();
     Class *super_class_info_;
+    bool print_dispatch_table_{};
 
 private:
     string class_name_;
-    bool print_dispatch_table_;
     Class *class_{};
 };
 

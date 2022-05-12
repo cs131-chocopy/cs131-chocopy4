@@ -34,6 +34,7 @@ public:
     static string get_value(ConstantStr *const_val) { return const_val->value_; }
     string get_name() override { return fmt::format("const_{}", id_); }
     string get_value() const { return value_; }
+    int get_id() const { return id_; }
     static ConstantStr *get(const string &val, int id, Module *m);
     string print() override;
     ConstantStr(Type *ty, string val, int id) : Constant(ty, "", 0), id_(id), value_(std::move(val)) {}
@@ -64,7 +65,7 @@ public:
 
     unsigned get_size_of_array() const { return const_array.size(); }
 
-    void set_const_array(const vector<Constant *> &new_array) { const_array = new_array; }
+    void set_const_array(const vector<Constant *> &new_array);
 
     static ConstantArray *get(ArrayType *ty, const vector<Constant *> &val) { return new ConstantArray(ty, val); };
 

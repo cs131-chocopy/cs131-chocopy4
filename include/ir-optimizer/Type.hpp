@@ -147,14 +147,14 @@ public:
     static ArrayType *get(Type *contained);
 
     Type *get_element_type() const { return contained_; }
-    unsigned get_num_of_elements() const { return num_elements_; }
+    int get_num_of_elements() const { return num_elements_; }
     void set_num_of_elements(int num_) { num_elements_ = num_; }
 
     virtual string print();
 
 private:
     Type *contained_; // The element type of the array.
-    unsigned num_elements_; // Number of elements in the array. -1 means ptr
+    int num_elements_; // Number of elements in the array. -1 means ptr
 };
 
 /** For use of duck typing in function passing and list dispatch table,
@@ -168,7 +168,7 @@ public:
     vector<Type *> get_union_type() const { return contained_; }
     virtual string print();
     virtual string get_name() { return "$union." + this->name_; };
-    int length_=0;
+    int length_ = 0;
 
 private:
     vector<Type *> contained_; // The element types of the union.
@@ -207,6 +207,22 @@ public:
 
 private:
     string str_;
+};
+
+class LabelType : public Type {
+public:
+    explicit LabelType(string str_, Class *stored_, Module *m);
+
+    static LabelType *get(string str_, Class *stored_, Module *m);
+
+    string get_label() const;
+    Class *get_class() const { return stored_; };
+
+    virtual string print() { return "%"+label_; }
+
+private:
+    string label_;
+    Class *stored_;
 };
 
 class VoidType : public Type {

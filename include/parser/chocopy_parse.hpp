@@ -324,7 +324,7 @@ public:
 
     AssignStmt(int *location, vector<Expr *> *target, AssignStmt *assign_stmt) : Stmt(location, "AssignStmt") {
         this->targets = target;
-        for (auto && item:*assign_stmt->targets){
+        for (auto &&item : *assign_stmt->targets) {
             this->targets->emplace_back(item);
         }
         this->value = assign_stmt->value;
@@ -959,6 +959,8 @@ public:
     TypedVar *var;
     /** The initial value assigned. */
     Literal *value;
+    /** The list is not used in function passing or class passing */
+    bool is_conslist = false;
 
     /** The AST for
      *      VAR = VALUE
@@ -1006,7 +1008,7 @@ public:
      *      PASS
      *  spanning source locations [LEFT..RIGHT].
      */
-    explicit PassStmt(int *location) : Stmt(location, "PassStmt"), Decl(location,"PassStmt") {}
+    explicit PassStmt(int *location) : Stmt(location, "PassStmt"), Decl(location, "PassStmt") {}
     void accept(ast::Visitor &visitor) override;
     cJSON *toJSON() override;
 };
@@ -1070,6 +1072,7 @@ class VarAssignStmt : public Stmt {
 public:
     Ident *var;
     Expr *value;
+    bool is_len_list = false;
 
     VarAssignStmt(int *location, Ident *var, Expr *value) : Stmt(location, "VarAssignStmt") {
         this->var = var;

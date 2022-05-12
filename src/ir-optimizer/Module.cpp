@@ -1,7 +1,5 @@
 #include "Module.hpp"
 
-#include <iterator>
-#include <utility>
 namespace lightir {
 
 Module::Module(string name) : module_name_(std::move(name)) {
@@ -99,7 +97,14 @@ string Module::print() {
     for (auto &&class_ : this->get_class()) {
         module_ir += fmt::format("{}\n", class_->print_class());
     }
+    auto counter = 0;
     for (auto global_val : this->get_global_variable()) {
+        if (global_val->init_val_ != nullptr && dynamic_cast<ConstantStr *>(global_val->init_val_)) {
+            if (counter == dynamic_cast<ConstantStr *>(global_val->init_val_)->get_id()) {
+                continue;
+            }
+            counter = dynamic_cast<ConstantStr *>(global_val->init_val_)->get_id();
+        }
         module_ir += fmt::format("{}\n", global_val->print());
     }
     int count = 0;

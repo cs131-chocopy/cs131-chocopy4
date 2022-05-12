@@ -23,11 +23,16 @@ Type *ARR_T;
 Type *STR_T;
 auto OBJ_T = new vector<Type *>();
 const std::regex to_replace("\\$(.+?)+\\.");
+const std::regex to_replace_prev(".+?\\.");
+const std::regex to_replace_post("\\..+?$");
 #define CONST(num) ConstantInt::get(num, &*module)
 vector<Constant *> new_array;
 vector<Value *> init_val;
 vector<BasicBlock *> base_layer;
 vector<BasicBlock *> for_layer_stack;
+vector<string> nonlocal_symbol;
+vector<string> iterable_symbol;
+bool is_local_global = false;
 /** Store the tmp value */
 Value *tmp_value;
 int tmp_int = 0;
@@ -38,6 +43,9 @@ string tmp_string;
 bool use_int = false;
 /** Check whether use the conslist to initialize a list */
 bool is_conslist = false;
+/** If there's no function or class or doubly list or above
+ * just skip all the global conslist */
+bool is_global_conslist = false;
 /** Function that is being built */
 Function *curr_func = nullptr;
 
@@ -49,19 +57,21 @@ int LightWalker::get_const_type_id() { return next_const_id++; }
 int LightWalker::get_class_id(const string &name) const { return sym->class_tag_[name]; }
 
 string LightWalker::get_nested_func_name(semantic::SymbolTable *func_sym, string &name) {
-    for (const auto &x : *func_sym->tab)
-        if ((x.second)->is_func_type())
-            if (dynamic_cast<semantic::FunctionDefType *>(x.second)) {
-                if (x.second->get_name() == name) {
-                    func_found = true;
-                    break;
+    if (func_sym->parent) {
+        for (const auto &x : *func_sym->tab)
+            if ((x.second)->is_func_type())
+                if (dynamic_cast<semantic::FunctionDefType *>(x.second)) {
+                    if (x.second->get_name() == name) {
+                        func_found = true;
+                        break;
+                    }
+                    name = get_nested_func_name(((semantic::FunctionDefType *)x.second)->current_scope, name);
+                    if (func_found) {
+                        name = x.second->get_name() + "." + name;
+                        break;
+                    }
                 }
-                name = get_nested_func_name(((semantic::FunctionDefType *)x.second)->current_scope, name);
-                if (func_found) {
-                    name = x.second->get_name() + "." + name;
-                    break;
-                }
-            }
+    }
     return name;
 }
 
@@ -94,6 +104,15 @@ Type *LightWalker::string_to_type_no_conslist(const string &type_name) {
         inside_loaded = Type::get_str_type(&*module);
     } else if (type_name.starts_with("[")) {
         inside_loaded = ArrayType::get(list_class->get_type());
+        if (type_name.find("int") != std::string::npos) // get an uninitialized item
+            inside_loaded = get_module()->get_int32_type();
+        else if (type_name.find("bool") != std::string::npos)
+            inside_loaded = get_module()->get_int1_type();
+        else if (type_name.find("str") != std::string::npos)
+            inside_loaded = get_module()->get_str_type();
+        for (int i = 0; i < std::count(type_name.begin(), type_name.end(), '['); i++) {
+            inside_loaded = ArrayType::get(inside_loaded);
+        }
     }
     return inside_loaded;
 }
@@ -127,6 +146,35 @@ Type *LightWalker::string_to_type_conslist(string type_name) {
     return result_loaded;
 }
 
+Type *LightWalker::string_to_type_conslist_init(string type_name) {
+    Value *inside_loaded = nullptr;
+    Type *result_loaded = nullptr;
+    auto const_str = scope.find("const_3");
+    if (type_name == "int")
+        return OBJ_T->at(1);
+    else if (type_name == "bool")
+        return OBJ_T->at(2);
+    else if (type_name == "str")
+        return OBJ_T->at(3);
+    else if (type_name.starts_with("[")) {
+        if (type_name.find("int") != std::string::npos) // get an uninitialized item
+            inside_loaded = CONST(0);
+        else if (type_name.find("bool") != std::string::npos)
+            inside_loaded = CONST(false);
+        else if (type_name.find("str") != std::string::npos)
+            inside_loaded = const_str;
+        for (int i = 0; i < std::count(type_name.begin(), type_name.end(), '['); i++) {
+            inside_loaded = list_class;
+        }
+        result_loaded = list_class;
+    } else if (!type_name.empty()) {
+        return OBJ_T->at(sym->class_tag_[type_name]);
+    } else
+        return VOID_T;
+
+    return result_loaded;
+}
+
 LightWalker::LightWalker(semantic::SymbolTable *sym) : sym(sym) {
     module = std::make_unique<Module>("ChocoPy code");
     builder = new IRBuilder(nullptr, module.get());
@@ -135,8 +183,8 @@ LightWalker::LightWalker(semantic::SymbolTable *sym) : sym(sym) {
     auto TyI32 = Type::get_int32_type(&*module);
     auto TyI1 = Type::get_int1_type(&*module);
     auto TyString = Type::get_str_type(&*module);
+    auto I8 = new IntegerType(8, &*module);
     auto TyArrI32 = Type::get_array_type(new IntegerType(32, &*module));
-    auto TyArrI8 = Type::get_array_type(new IntegerType(8, &*module));
     auto TyArrI1 = Type::get_array_type(new IntegerType(1, &*module));
     auto TyArrStr = Type::get_array_type(new StringType("", &*module));
 
@@ -186,13 +234,17 @@ LightWalker::LightWalker(semantic::SymbolTable *sym) : sym(sym) {
     auto heat_init_fun = Function::create(heat_init_type, "heap.init", module.get());
 
     std::vector<Type *> initchars_params;
-    initchars_params.emplace_back(TyArrI8);
+    initchars_params.emplace_back(I8);
     auto initchars_type = FunctionType::get(TyPtrStr, initchars_params);
     auto initchars_fun = Function::create(initchars_type, "initchars", module.get());
 
     std::vector<Type *> noconv_params;
     auto noconv_type = FunctionType::get(TyPtrInt, noconv_params);
     auto noconv_fun = Function::create(noconv_type, "noconv", module.get());
+
+    std::vector<Type *> nonlist_params;
+    auto nonlist_type = FunctionType::get(TyPtrList, nonlist_params);
+    auto nonlist_fun = Function::create(nonlist_type, "nonlist", module.get());
 
     std::vector<Type *> error_oob_params;
     auto error_oob_type = FunctionType::get(TyVoid, error_oob_params);
@@ -210,6 +262,7 @@ LightWalker::LightWalker(semantic::SymbolTable *sym) : sym(sym) {
     scope.push("heap.init", heat_init_fun);
     scope.push("initchars", initchars_fun);
     scope.push("noconv", noconv_fun);
+    scope.push("nonlist", nonlist_fun);
 
     scope.push("error.OOB", error_oob_fun);
     scope.push("error.None", error_none_fun);
@@ -238,7 +291,7 @@ void LightWalker::visit(parser::Program &node) {
     for (const auto &obj_type : sym->class_tag_) {
         if (obj_type.first == "list")
             module->add_class_type(new Class(&*module, ".list", obj_type.second, nullptr));
-        else
+        else if (obj_type.first == "str" || obj_type.first == "int" || obj_type.first == "bool")
             module->add_class_type(new Class(&*module, obj_type.first, obj_type.second, nullptr));
     }
     for (int i = 0; i < sym->class_tag_.size(); i++) {
@@ -247,6 +300,8 @@ void LightWalker::visit(parser::Program &node) {
 
     /** Some function that requires the OBJ_T to define */
     auto TyPtrList = ArrayType::get(list_class->get_type());
+    auto TyPtrObj = ArrayType::get(module->get_class().front());
+    // FIXME: auto TyPtrObj = LabelType::get("$object$prototype_type",get_module()->get_class().front(), module.get());
     auto TyPtrInt = ArrayType::get(OBJ_T->at(1));
     auto TyPtrBool = ArrayType::get(OBJ_T->at(2));
     auto TyPtrStr = ArrayType::get(OBJ_T->at(3));
@@ -303,6 +358,9 @@ void LightWalker::visit(parser::Program &node) {
     auto input_type = FunctionType::get(TyPtrStr, {});
     auto input_fun = Function::create(input_type, "$input", module.get());
 
+    auto alloc_type = FunctionType::get(TyPtrObj, {TyPtrObj});
+    auto alloc_fun = Function::create(alloc_type, "alloc", module.get());
+
     std::vector<Type *> strcat_params;
     std::vector<Type *> str_params;
     str_params.emplace_back(TyPtrStr);
@@ -324,6 +382,7 @@ void LightWalker::visit(parser::Program &node) {
     scope.push("$len", len_fun);
     scope.push("print", put_fun);
     scope.push("concat", concat_fun);
+    scope.push("alloc", alloc_fun);
     scope.push("conslist", conslist_fun);
     module->add_union(union_len);
     module->add_union(union_put);
@@ -336,8 +395,8 @@ void LightWalker::visit(parser::Program &node) {
         const_ = GlobalVariable::create(fmt::format("const_{}", num), &*this->module, OBJ_T->at(2), false, nullptr);
         scope.push(fmt::format("const_{}", num), const_);
     }
-    const_vect = {2, 3, 4, 5, 6, 7};
-    for (auto &&num : const_vect) {
+    auto const_vect_1 = {2, 3, 4, 5, 6, 7};
+    for (auto &&num : const_vect_1) {
         const_ = GlobalVariable::create(fmt::format("const_{}", num), &*this->module, OBJ_T->at(3), false, nullptr);
         scope.push(fmt::format("const_{}", num), const_);
     }
@@ -375,8 +434,8 @@ void LightWalker::visit(parser::Program &node) {
     auto baseBB = BasicBlock::create(&*module, "", curr_func);
     base_layer.emplace_back(baseBB);
     builder->set_insert_point(baseBB);
-
     builder->create_asm("addi fp, sp, 0");
+    scope.push("main", curr_func);
 
     for (auto &&decl : *node.declarations) {
         decl->accept(*this);
@@ -400,7 +459,7 @@ Value *LightWalker::get_conslist(vector<Value *> &object_args, Value *called_ini
     is_conslist = dynamic_cast<ArrayType *>(tmp_value->get_type()) &&
                   dynamic_cast<Class *>(dynamic_cast<ArrayType *>(tmp_value->get_type())->get_element_type());
 
-    if (!is_conslist) {
+    if (!(is_conslist && is_global_conslist)) {
         if (dynamic_cast<ConstantArray *>(tmp_value)) {
             auto array_ = dynamic_cast<ConstantArray *>(tmp_value)->const_array;
             Value *first_num = CONST(int(array_.size()));
@@ -544,10 +603,10 @@ int main(int argc, char *argv[]) {
         if (emit) {
             cout << "\nLLVM IR:\n; ModuleID = 'chocopy'\nsource_filename = \"\"" << input_path << "\"\"\n\n" << IR;
         }
-        
+
         if (run) {
 #ifdef RV64
-            auto command_string = "clang -mno-relax  -no-integrated-as -O0 -w --target=riscv64-unknown-linux-gnu "s +
+            auto command_string = "clang -mno-relax  -no-integrated-as -O1 -w --target=riscv64-unknown-linux-gnu "s +
                                   target_path + ".ll -o " + target_path + ".s -S";
             int re_code = std::system(command_string.c_str());
 #else

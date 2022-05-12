@@ -5,7 +5,7 @@
 #include <utility>
 
 namespace lightir {
-void Class::add_method(Function *func) const {
+void Class::add_method(Function *func) {
     auto func_exist = [&func](Function *func_) { return func_->get_name() == func->get_name(); };
     auto idx = std::find_if(this->methods_->begin(), this->methods_->end(), func_exist);
     if (idx != this->methods_->end()) {
@@ -16,7 +16,7 @@ void Class::add_method(Function *func) const {
 }
 
 Class::Class(Module *m, const string &name_, int type_tag, Class *super_class_info, bool with_dispatch_table_,
-             bool is_dispatch_table_)
+             bool is_dispatch_table_, bool is_append)
     : Type(static_cast<type>(type_tag), m), Value(this, name_), class_name_(name_), super_class_info_(super_class_info),
       type_tag_(type_tag), print_dispatch_table_(is_dispatch_table_) {
     prototype_label_ = fmt::format("${}${}", name_, "prototype");
@@ -34,7 +34,7 @@ Class::Class(Module *m, const string &name_, int type_tag, Class *super_class_in
     for (auto &&c : m->get_class())
         if (c->type_tag_ == type_tag)
             flag = true;
-    if (!flag)
+    if (!flag && is_append)
         m->add_class(this);
 #endif
 }
@@ -217,6 +217,7 @@ string Class::print_class() {
         const_ir += "@" + this->dispatch_table_label_ + " = global %" + this->dispatch_table_label_ + "_type {\n  ";
 
         for (auto &&method : *this->methods_) {
+            // FIXME: Use dispatch_table_vec to print.
             const_ir += fmt::format("{}({})* @{}", method->get_return_type()->print(), method->print_args(),
                                     method->get_name());
             if (method != this->methods_->at(this->methods_->size() - 1)) {

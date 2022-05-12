@@ -18,6 +18,8 @@ using std::set;
 bool is_lambda_pass = false;
 bool is_rvalue = false;
 vector<string> lambda_params;
+vector<string> conslist_table;
+vector<string> len_list_table;
 template <class Key, class T> set<string> key_to_set(const std::map<Key, T> &map, std::set<Key> &set) {
     set.clear();
     auto itr = map.begin();
@@ -184,6 +186,12 @@ void TypeChecker::visit(parser::IfExpr &s) {
 /** Get the right type */
 string TypeChecker::get_common_type(SymbolType *first, SymbolType *second) {
     string tmp = first->get_name();
+    if (tmp.starts_with("[")) {
+        if (second->get_name() == "object")
+            return "object";
+        else
+            return "";
+    }
     list<string> first_dfs = {tmp};
     while (tmp != "object") {
         for (const auto &x : super_classes) {
@@ -204,9 +212,12 @@ string TypeChecker::get_common_type(SymbolType *first, SymbolType *second) {
                 tmp = x.second;
                 break;
             }
+            if (tmp == "None") {
+                return "object";
+            }
         }
     }
-    return "";
+    return "object";
 }
 void TypeChecker::setup_num_to_class() {
     for (const auto &x : *sym->tab) {
@@ -228,7 +239,10 @@ void TypeChecker::setup_num_to_class() {
     sym->class_tag_["bool"] = 2;
     sym->class_tag_["str"] = 3;
 }
-
+/** Only takes care of non list */
+bool TypeChecker::is_sub_type(SymbolType *first, SymbolType *second) {
+    return get_common_type(first, second) == first->get_name();
+}
 ValueType *ValueType::annotate_to_val(parser::TypeAnnotation *annotation) {
     if (dynamic_cast<parser::ClassType *>(annotation)) {
         return new ClassValueType((parser::ClassType *)annotation);

@@ -124,7 +124,11 @@ public:
         return result.second;
     }
 
-    void remove(const string &name) { inner[inner.size() - 1].erase(inner[inner.size() - 1].find(name)); }
+    void remove(const string &name) {
+        if (inner[inner.size() - 1].find(name) != inner[inner.size() - 1].end()) {
+            inner[inner.size() - 1].erase(inner[inner.size() - 1].find(name));
+        }
+    }
 
     string cat_nest_func(const string &name) { return ""; }
 

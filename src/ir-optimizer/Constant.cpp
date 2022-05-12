@@ -33,6 +33,11 @@ ConstantArray::ConstantArray(ArrayType *ty, const vector<Constant *> &val) : Con
 
 Constant *ConstantArray::get_element_value(int index) { return this->const_array.at(index); }
 
+void ConstantArray::set_const_array(const vector<Constant *> &new_array) {
+    const_array = new_array;
+    this->type_ = new ArrayType(dynamic_cast<ArrayType *>(this->type_)->get_element_type(), new_array.size());
+};
+
 string ConstantArray::print() {
     string const_ir;
     const_ir += this->get_type()->print();
@@ -66,7 +71,7 @@ string ConstantStr::print() {
                                 this->get_type()->get_type_id(), int(value_.size() / 4) + 5, value_.size(),
                                 value_.size() + 1, value_.size() + 1, id_) +
                     "\n}";
-        const_ir += fmt::format("\n@str.const_{} = private unnamed_addr global [{} x i8] c\"{}\\10\", align 1\n", id_,
+        const_ir += fmt::format("\n@str.const_{} = private unnamed_addr global [{} x i8] c\"{}\\00\", align 1\n", id_,
                                 value_.size() + 1, value_);
         header_print_ = false;
     } else {

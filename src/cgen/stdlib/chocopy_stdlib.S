@@ -101,6 +101,19 @@ li t1, 3 # Load type tag of `str`
 beq t0, t1, len_13 # Go to len(str)
 li t1, -1 # Load type tag for list objects
 beq t0, t1, len_13 # Go to len(list)
+li t1, 1
+beq t0, t1, len_12
+li t1, 2
+beq t0, t1, len_12
+lw t0, 0(t0) # Get length of list
+lw a0, 0(a0) # Get list
+li t1, 3 # Load type tag of `str`
+beq t0, t1, len_13 # Go to len(str)
+li t1, -1 # Load type tag for list objects
+ble t0, t1, len_13 # Go to len(list)
+j len_12 # Go to len(None)
+len_14:
+li a0, 0
 .globl $object.__init__
 $object.__init__:
 # Init method for type object.
@@ -190,73 +203,99 @@ add s1, zero, zero
 lui s1, 4096
 add sp, sp, s1
 ret
-.globl alloc
-alloc:
-# Runtime support function alloc.
-# Prototype address is in a0.
-lw a1, 4(a0) # Get size of object in words
-j alloc2 # Allocate object with exact size
 .globl alloc2
 alloc2:
 # Runtime support function alloc2 (realloc).
 # Prototype address is in a0.
 # Number of words to allocate is in a1.
+addi sp, sp, -60
+sw ra, 28(sp)
+sw fp, 24(sp)
+addi fp, sp, 60
+sw a0, -4(fp)
+sw s1, -8(fp)
+sw a5, -12(fp)
+sw a4, -16(fp)
+sw a3, -20(fp)
+sw a2, -24(fp)
+sw a1, -28(fp)
 li a2, 4 # Word size in bytes
 mul a2, a1, a2 # Calculate number of bytes to allocate
 add a2, gp, a2 # Estimate where GP will move
 bgeu a2, s11, alloc2_15 # Go to OOM handler if too large
-lw t0, 4(a0) # Get size of object in words
-mv t2, a0 # Initialize src ptr
-mv t3, gp # Initialize dest ptr
-alloc2_16: # Copy-loop header
-lw t1, 0(t2) # Load next word from src
-sw t1, 0(t3) # Store next word to dest
-addi t2, t2, 4 # Increment src
-addi t3, t3, 4 # Increment dest
-addi t0, t0, -1 # Decrement counter
-bne t0, zero, alloc2_16 # Loop if more words left to copy
-mv a0, gp # Save new object's address to return
-sw a1, 4(a0) # Set size of new object in words
-mv gp, a2 # Set next free slot in the heap
+lw t0, -28(fp) # Get size of object in words
+slli a0, t0, 2
+call sbrk
+lw a1, -4(fp)
+lw t0, 0(a1)
+sw t0, 0(a0)
+lw t0, 1(a1)
+sw t0, 1(a0)
+lw t0, 2(a1)
+sw t0, 2(a0)
+lw s1, -8(fp)
+lw a5, -12(fp)
+lw a4, -16(fp)
+lw a3, -20(fp)
+lw a2, -24(fp)
+lw a1, -28(fp)
+lw ra, 28(sp)
+lw fp, 24(sp)
+addi sp, sp, 60
 jr ra # Return to caller
 alloc2_15: # OOM handler
 li a0, 5 # Exit code for: Out of memory
 la a1, const_5 # Load error message as str
 addi a1, a1, 16 # Load address of attribute __str__
 j abort # Abort
+.globl alloc
+alloc:
+# Runtime support function alloc.
+# Prototype address is in a0.
+lw a1, 4(a0) # Get size of object in words
+j alloc2 # Allocate object with exact size
 .globl concat
 concat:
 # Function concat
-addi sp, sp, -32
-sw ra, 28(sp)
-sw fp, 24(sp)
-addi fp, sp, 32
+addi sp, sp, -40
+sw ra, 36(sp)
+sw fp, 32(sp)
+addi fp, sp, 40
 sw s1, -12(fp)
 sw s2, -16(fp)
 sw s3, -20(fp)
 sw s4, -24(fp)
 sw s5, -28(fp)
-lw t0, 4(fp)
-lw t1, 0(fp)
-beqz t0, concat_none
-beqz t1, concat_none
+lw t0, 0(a0)
+sw t0, 4(fp)
+lw t1, 0(a1)
+sw t1, 0(fp)
+lw t2, 0(t0)
+beqz t2, concat_none
+lw t2, 0(t1)
+beqz t2, concat_none
 lw t0, 12(t0)
 lw t1, 12(t1)
-add s5, t0, t1
-addi a1, s5, 4
+add s6, t0, t1
+li a1,6
 la a0, $.list$prototype
 jal alloc2
-sw s5, 12(a0)
+sw s6, 12(a0)
 mv s5, a0
 addi s3, s5, 16
+sw a0, -32(fp)
+slli a0, s6, 2
+sw ra, -36(fp)
+call sbrk
+lw ra, -36(fp)
+mv s3, a0
 lw s1, 4(fp)
 lw s2, 12(s1)
 addi s1, s1, 16
-lw s4, 12(fp)
+lw s1, 0(s1)
 concat_1:
 beqz s2, concat_2
 lw a0, 0(s1)
-jalr ra, s4, 0
 sw a0, 0(s3)
 addi s2, s2, -1
 addi s1, s1, 4
@@ -266,11 +305,10 @@ concat_2:
 lw s1, 0(fp)
 lw s2, 12(s1)
 addi s1, s1, 16
-lw s4, 8(fp)
+lw s1, 0(s1)
 concat_3:
 beqz s2, concat_4
 lw a0, 0(s1)
-jalr ra, s4, 0
 sw a0, 0(s3)
 addi s2, s2, -1
 addi s1, s1, 4
@@ -278,6 +316,10 @@ addi s3, s3, 4
 j concat_3
 concat_4:
 mv a0, s5
+lw s1, 12(a0)
+slli s1,s1,2
+sub s3,s3,s1
+sw s3,16(a0)
 lw s1, -12(fp)
 lw s2, -16(fp)
 lw s3, -20(fp)
@@ -285,7 +327,9 @@ lw s4, -24(fp)
 lw s5, -28(fp)
 lw ra, -4(fp)
 lw fp, -8(fp)
-addi sp, sp, 32
+addi sp, sp, 40
+sw a0,20(a0)
+addi a0, a0, 20
 jr ra
 concat_none:
 j error.None
@@ -296,8 +340,8 @@ addi sp, sp, -60
 sw ra, 28(sp)
 sw fp, 24(sp)
 addi fp, sp, 60
-sw a7, -4(fp)
-sw a6, -8(fp)
+sw gp, -4(fp)
+sw s1, -8(fp)
 sw a5, -12(fp)
 sw a4, -16(fp)
 sw a3, -20(fp)
@@ -305,7 +349,7 @@ sw a2, -24(fp)
 sw a1, -28(fp)
 add a1,zero, a0
 sw a0, -40(fp)
-beqz a1, conslist_done
+beqz a1, conslist_done_1
 # a1 pass for malloc the array
 slli a0, a1, 2
 call sbrk
@@ -334,10 +378,22 @@ sw t2, 16(a0)
 conslist_done:
 sw a0, 20(a0)
 add a0, a0, 20
+lw gp, -4(fp)
+lw s1, -8(fp)
+lw a5, -12(fp)
+lw a4, -16(fp)
+lw a3, -20(fp)
+lw a2, -24(fp)
+lw a1, -28(fp)
 lw ra, 28(sp)
 lw fp, 24(sp)
 addi sp, sp, 60
 jr ra
+conslist_done_1:
+la a0, $.list$prototype
+li a1, 6
+jal alloc2
+j conslist_done
 .globl error.Div
 error.Div:
 li a0, 2 # Exit code for: Division by zero
@@ -438,17 +494,21 @@ jr ra
 noconv:
 li a0, 0
 jr ra
-.globl print
-print:
-# Function print
-beq a0, zero, print_6 # None is an illegal argument
-lw t0, 0(a0) # Get type tag of arg
-li t1, 1 # Load type tag of `int`
-beq t0, t1, print_7 # Go to print(int)
-li t1, 3 # Load type tag of `str`
-beq t0, t1, print_8 # Go to print(str)
-li t1, 2 # Load type tag of `bool`
-beq t0, t1, print_9 # Go to print(bool)
+.globl nonlist
+nonlist:
+addi sp, sp, -32
+sw ra, 28(sp)
+sw fp, 24(sp)
+addi fp, sp,32
+li a0, 6
+call sbrk
+addi a0,a0,4
+sw a0, -4(a0)
+addi a0,a0,-4
+lw ra, -4(fp)
+lw fp, -8(fp)
+addi sp, sp, 32
+jr ra
 .globl print_10
 print_10:
 # Print False object in A0
@@ -508,6 +568,17 @@ lw a0, 12(a0) # Load attribute __bool__
 beq a0, zero, print_10 # Go to: print(False)
 la a0, const_3 # String representation: True
 j print_8 # Go to: print(str)
+.globl print
+print:
+# Function print
+beq a0, zero, print_6 # None is an illegal argument
+lw t0, 0(a0) # Get type tag of arg
+li t1, 1 # Load type tag of `int`
+beq t0, t1, print_7 # Go to print(int)
+li t1, 3 # Load type tag of `str`
+beq t0, t1, print_8 # Go to print(str)
+li t1, 2 # Load type tag of `bool`
+beq t0, t1, print_9 # Go to print(bool)
 .globl strcat
 strcat:
 # Function strcat

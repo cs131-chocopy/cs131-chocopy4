@@ -1,4 +1,8 @@
 #!/usr/bin/python3
+import sys
+import time
+
+from natsort import natsorted
 import argparse
 import re
 import pymysql
@@ -6,20 +10,28 @@ import json
 import os
 import subprocess
 import traceback
+import pexpect
 import tempfile
 from typing import Callable, List, Tuple
 
-pas: str = "../chocopy_test/"
+pas: str = "../tests/"
 
 
 def check_exist(ref_json: json, error_json: json, pa: int) -> bool:
     if pa == 1:
         try:
-            for item in ref_json["errors"]["errors"]:
-                for chk in error_json["errors"]:
-                    if item["kind"] == chk["kind"]:
-                        return True
-            return False
+            try:
+                for item in ref_json["errors"]["errors"]:
+                    for chk in error_json["errors"]:
+                        if item["kind"] == chk["kind"]:
+                            return True
+                return False
+            except:
+                for item in ref_json["errors"]["errors"]:
+                    for chk in error_json["errors"]["errors"]:
+                        if item["kind"] == chk["kind"]:
+                            return True
+                return False
         except:
             return False
     else:
@@ -115,7 +127,7 @@ def dfs(visited, ref_json, out_json, node):
                     if isinstance(neighbor[item], list):
                         if any(isinstance(j, int) for j in neighbor[item]) and check_location(neighbor[item],
                                                                                               cur_item[item]) or len(
-                                neighbor[item]) == 0:
+                            neighbor[item]) == 0:
                             pass
                         else:
                             cur_depth.append(item)
@@ -154,7 +166,7 @@ def dfs(visited, ref_json, out_json, node):
                             if any(isinstance(j, int) for j in neighbor[item]) and check_location(neighbor[item],
                                                                                                   cur_item[
                                                                                                       item]) or len(
-                                    neighbor[item]) == 0:
+                                neighbor[item]) == 0:
                                 pass
                             else:
                                 for i1, j1 in enumerate(neighbor[item]):
@@ -186,7 +198,7 @@ def dfs(visited, ref_json, out_json, node):
                             if any(isinstance(j, int) for j in neighbor[item]) and check_location(neighbor[item],
                                                                                                   cur_item[
                                                                                                       item]) or len(
-                                    neighbor[item]) == 0:
+                                neighbor[item]) == 0:
                                 pass
                             else:
                                 cur_depth.append(item)
@@ -215,7 +227,7 @@ def dfs(visited, ref_json, out_json, node):
                             if any(isinstance(j, int) for j in neighbor[item]) and check_location(neighbor[item],
                                                                                                   cur_item[
                                                                                                       item]) or len(
-                                    neighbor[item]) == 0:
+                                neighbor[item]) == 0:
                                 pass
                             else:
                                 cur_depth.append(item)
@@ -307,7 +319,7 @@ def check_once(pa_index: int):
     success_count: list = [0, 0, 0]
     test_results: list = []
 
-    pa_roots: List[str] = ['/fuzz', '/student','/sample']
+    pa_roots: List[str] = [ '/sample']
     for i, pa_root in enumerate(pa_roots):
         try:
             pa_root = os.path.join(pas + f'pa{pa_index}' + pa_root)
@@ -316,14 +328,14 @@ def check_once(pa_index: int):
 
         files: list = [
             f
-            for f in os.listdir(pa_root)
+            for f in natsorted(os.listdir(pa_root))
             if os.path.isfile(os.path.join(pa_root, f))
         ]
         is_testcase: Callable[[str], bool] = {
             1: lambda file_name: '.ast' not in file_name,
             2: lambda file_name: '.out' not in file_name,
             3: lambda
-            file_name: '.typed' not in file_name and '.in' not in file_name and '.s' not in file_name and '.ll' not in file_name and '.py' in file_name,
+                file_name: '.typed' not in file_name and '.in' not in file_name and '.s' not in file_name and '.ll' not in file_name and '.py' in file_name,
             4: lambda file_name: '.typed' not in file_name and '.in' not in file_name and '.s' not in file_name,
         }[pa_index]
         test_cases: list = [
@@ -346,31 +358,31 @@ def check_once(pa_index: int):
                 reference_output_tmp = json.loads(
                     readfile(reference_output_path).strip())
                 writefile(reference_output_path_tmp, json.dumps(
-                    reference_output_tmp, indent=4,  sort_keys=True).replace(' ', ''))
+                    reference_output_tmp, indent=4, sort_keys=True).replace(' ', ''))
                 print(reference_output_path)
                 os.system(
-                    " ".join(["../build/cjson_formatter", reference_output_path_tmp, ">", reference_output_path_out]))
+                    " ".join(["../cmake-build-debug-kali-gcc/cjson_formatter", reference_output_path_tmp, ">",
+                              reference_output_path_out]))
                 reference_output = readfile(reference_output_path_out).strip()
             else:
-                reference_output = readfile(reference_output_path).strip()
+                reference_output = readfile(reference_output_path).strip().replace(" ", "").replace("\n\n", "\n").encode("utf-8")
 
             program_path: str = {
-                1: '../build/parser',
-                2: '../build/semantic',
+                1: '../cmake-build-debug-kali-gcc/parser',
+                2: '../cmake-build-debug-kali-gcc/semantic',
                 3: './ir-optimizer -run',
                 4: './cgen -run',
             }[pa_index]
             if pa == 3 or pa == 4:
-                os.chdir('../build')
+                os.chdir('../cmake-build-debug-kali-gcc')
             program_output: str
             if case == "input.py":
-                cmd = program_path.split(" ") + [os.path.join(pa_root, case)]
-                text_file = open("../tests/pa3/sample/input.py.in", "r")
-                data = text_file.read()
-                text_file.close()
-                ip = data.encode('utf-8')
-                result = subprocess.run(cmd, stdout=subprocess.PIPE, input=ip)
-                program_output = result.stdout.decode('utf-8')
+                cmd = program_path.split(" ") + [os.path.join(pa_root, case)] + ["|", "cat",
+                                                                                 "../tests/pa3/sample/input.py.in"]
+                result = pexpect.spawn('/bin/bash -c "' + " ".join(cmd) + '"')
+                time.sleep(1)
+                result.sendcontrol('d')
+                program_output = result.read().decode("utf-8").replace(" ", "").replace("\r","").strip()
             else:
                 if pa == 2:
                     program_output_path_tmp = reference_output_path + ".out.tmp"
@@ -381,12 +393,13 @@ def check_once(pa_index: int):
                         capture_output=True).stdout.decode('utf-8').replace(" ", "").replace("bblloader", "").strip()
                     program_output_tmp = json.loads(program_output_tmp)
                     writefile(program_output_path_tmp,
-                              json.dumps(program_output_tmp, indent=4,  sort_keys=True))
+                              json.dumps(program_output_tmp, indent=4, sort_keys=True))
                     os.system(
                         " ".join(["../build/cjson_formatter", program_output_path_tmp, ">", program_output_path_bak]))
-                    program_output = readfile(program_output_path_bak).strip()
-
+                    program_output = readfile(program_output_path_bak).strip().replace("\n\n", "\n")
                 else:
+                    print(" ".join(program_path.split(
+                        " ") + [os.path.join(pa_root, case)]))
                     program_output = subprocess.run(
                         program_path.split(
                             " ") + [os.path.join(pa_root, case)],
@@ -408,7 +421,7 @@ def check_once(pa_index: int):
                         while True:
                             sb += 1
                             reference_output = readfile(
-                                reference_output_path+'.'+str(sb)).strip()
+                                reference_output_path + '.' + str(sb)).strip()
                             if checker(reference_output, program_output):
                                 success_count[i] += 1
                                 test_results.append('*Success!*')
@@ -442,8 +455,7 @@ def check_once(pa_index: int):
                 break
             finally:
                 test_results.append(f'end({case})\n')
-            if count[i] - success_count[i] > 0:
-                break
+
         print(
             f'{count[i]} tests, {success_count[i]} success, {count[i] - success_count[i]} failed in ' + pa_root)
 

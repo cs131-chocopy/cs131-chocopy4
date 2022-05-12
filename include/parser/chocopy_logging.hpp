@@ -10,13 +10,15 @@
 #include <filesystem>
 #include <fmt/color.h>
 #include <fmt/format.h>
-#include <fmt/ostream.h>
 #include <fmt/os.h>
+#include <fmt/ostream.h>
 #include <fstream>
 #include <iostream>
+#include <list>
 #include <sstream>
 #include <string>
 
+using std::list;
 using std::string;
 enum LogLevel { DEBUG = 0, INFO, WARNING, ERROR };
 struct LocationInfo {

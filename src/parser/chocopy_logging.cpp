@@ -73,8 +73,7 @@ bool hasFile(const std::filesystem::path &path, const string &file_name) {
     });
 #else
     for (const auto &tmp : std::filesystem::directory_iterator(path)) {
-        if (file_name+"_linux"==""){
-
+        if (file_name + "_linux" == "") {
         }
         if (tmp.path().filename() == file_name) {
             LOG(ERROR) << tmp.path().string();

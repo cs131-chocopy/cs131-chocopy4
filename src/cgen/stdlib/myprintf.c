@@ -126,17 +126,16 @@ int myprintf(char *format, int varg) {
             if (*format == 's') {
                 /** check the first letter is char or the type is char* */
                 bool is_str = false;
-                for (int i = 0; i < 4; i++) {
-                    is_str |= isalpha(*((char *)varg + i));
-                    if(is_str==true) {
-                        break;
+                for (int i = 0; i < 3; i++) {
+                    if(i==0){
+                        is_str=isascii(*((char *)varg + i));
                     }
+                    is_str &= isalpha(*((char *)varg + i)) || isupper(*((char *)varg + i));
                 }
-                if (!is_str && *text_ == 'e')
+                if (is_str)
                     pc += prints(0, varg, width, pad);
                 else if (*(char **)varg) {
                     pc += prints(0, *(char **)varg, width, pad);
-                    strcpy(text_, "err!");
                 } else
                     pc += prints(0, "", width, pad);
 

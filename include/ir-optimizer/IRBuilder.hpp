@@ -54,6 +54,9 @@ public:
     CallInst *create_call(Value *func, vector<Value *> args) {
         return CallInst::create(dynamic_cast<Function *>(func), std::move(args), this->BB_);
     }
+    CallInst *create_call(Value *real_func, Type *func, vector<Value *> args) {
+        return CallInst::create(real_func, dynamic_cast<FunctionType *>(func), std::move(args), this->BB_);
+    }
 
     BranchInst *create_br(BasicBlock *if_true) { return BranchInst::create_br(if_true, this->BB_); }
     BranchInst *create_cond_br(Value *cond, BasicBlock *if_true, BasicBlock *if_false) {
@@ -61,20 +64,23 @@ public:
     }
 
     ReturnInst *create_ret(Value *val) { return ReturnInst::create_ret(val, this->BB_); }
-    GetElementPtrInst *create_gep(Value *ptr, Value * idx) {
-        return GetElementPtrInst::create_gep(ptr, idx, this->BB_);
-    }
+    GetElementPtrInst *create_gep(Value *ptr, Value *idx) { return GetElementPtrInst::create_gep(ptr, idx, this->BB_); }
 
     ReturnInst *create_void_ret() { return ReturnInst::create_void_ret(this->BB_); }
 
     StoreInst *create_store(Value *val, Value *ptr) { return StoreInst::create_store(val, ptr, this->BB_); }
     LoadInst *create_load(Type *ty, Value *ptr) { return LoadInst::create_load(ty, ptr, this->BB_); }
+    LoadInst *create_load(Value *ptr1, Value *ptr2) { return LoadInst::create_load(ptr1, ptr2, this->BB_); }
     LoadInst *create_load(Value *ptr) { return LoadInst::create_load(ptr->get_type(), ptr, this->BB_); }
 
     AllocaInst *create_alloca(Type *ty) { return AllocaInst::create_alloca(ty, this->BB_); }
     ZextInst *create_zext(Value *val, Type *ty) { return ZextInst::create_zext(val, ty, this->BB_); }
-    InsertElementInst *create_insertelement(Value *val, Type *ty) { return InsertElementInst::create_insert_element(val, ty, this->BB_); }
-    ExtractElementInst *create_exsertelement(Value *val, Type *ty) { return ExtractElementInst::create_extract_element(val, ty, this->BB_); }
+    InsertElementInst *create_insertelement(Value *val, Type *ty) {
+        return InsertElementInst::create_insert_element(val, ty, this->BB_);
+    }
+    ExtractElementInst *create_exsertelement(Value *val, Type *ty) {
+        return ExtractElementInst::create_extract_element(val, ty, this->BB_);
+    }
     BitCastInst *create_bitcast(Value *val, Type *ty) { return BitCastInst::create_bitcast(val, ty, this->BB_); }
     TruncInst *create_trunc(Value *val, Type *ty) { return TruncInst::create_trunc(val, ty, this->BB_); }
     AsmInst *create_asm(const string &asm_str) { return AsmInst::create_asm(m_, asm_str, this->BB_); }

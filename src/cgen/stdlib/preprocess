@@ -87,6 +87,22 @@ for file in $(ls . | grep '\.s'); do
                 echo ''$(echo $line | sed -r 's/\\$//g')'' >>chocopy_stdlib.S
             done
         fi
+    elif [[ $file == "concat.s" ]]; then
+        if [[ ! $1 = "linux" ]]; then
+            echo '.globl '$file'' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            echo ''$file':' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            cat $file | while read line; do
+                echo ''$(echo $line | sed -r 's/\\$//g')'' >>chocopy_stdlib.S
+            done
+        fi
+    elif [[ $file == "concat_linux.s" ]]; then
+        if [[ $1 = linux ]]; then
+            echo '.globl concat' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            echo 'concat:' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            cat $file | while read line; do
+                echo ''$(echo $line | sed -r 's/\\$//g')'' >>chocopy_stdlib.S
+            done
+        fi
     elif [[ $file == "print_7.s" ]]; then
         if [[ ! $1 = "linux" ]]; then
             echo '.globl '$file'' | sed -r 's/\.s//g' >>chocopy_stdlib.S
@@ -99,6 +115,22 @@ for file in $(ls . | grep '\.s'); do
         if [[ $1 = "linux" ]]; then
             echo '.globl print_7' | sed -r 's/\.s//g' >>chocopy_stdlib.S
             echo 'print_7:' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            cat $file | while read line; do
+                echo ''$(echo $line | sed -r 's/\\$//g')'' >>chocopy_stdlib.S
+            done
+        fi
+    elif [[ $file == "alloc2.s" ]]; then
+        if [[ ! $1 = "linux" ]]; then
+            echo '.globl '$file'' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            echo ''$file':' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            cat $file | while read line; do
+                echo ''$(echo $line | sed -r 's/\\$//g')'' >>chocopy_stdlib.S
+            done
+        fi
+    elif [[ $file == "alloc2_linux.s" ]]; then
+        if [[ $1 = "linux" ]]; then
+            echo '.globl alloc2' | sed -r 's/\.s//g' >>chocopy_stdlib.S
+            echo 'alloc2:' | sed -r 's/\.s//g' >>chocopy_stdlib.S
             cat $file | while read line; do
                 echo ''$(echo $line | sed -r 's/\\$//g')'' >>chocopy_stdlib.S
             done
