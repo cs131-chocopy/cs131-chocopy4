@@ -3,26 +3,22 @@
 <!-- TOC -->
 
 - [Programing Assignment I 文档](#programing-assignment-i-文档)
-    - [0. 基础知识](#0-基础知识)
-        - [0.1 Python3词法](#01-python3词法)
-        - [0.2 FLEX简单使用](#02-flex简单使用)
-    - [0.4 ChocoPy 语法](#04-chocopy-语法)
-        - [ChocoPy 语法](#chocopy-语法)
-        - [0.4 BISON简单使用](#04-bison简单使用)
-            - [思考题](#思考题)
-        - [0.5 Bison 和 Flex 的关系](#05-bison-和-flex-的关系)
-    - [1. 实验要求](#1-实验要求)
-        - [主要工作](#主要工作)
-        - [提示](#提示)
-        - [1.1 目录结构](#11-目录结构)
-        - [1.2 Bonus](#12-bonus)
-        - [1.2 编译、运行和验证](#12-编译运行和验证)
-
-        - [1. 实验要求](#1-实验要求)
-            - [1.1 目录结构](#11-目录结构)
-            - [1.2 Bonus](#12-Bonus)
-            - [1.3 编译、运行和验证](#13-编译运行和验证)
-            - [1.4 提交要求和评分标准](#14-提交要求和评分标准)
+  - [0. 基础知识](#0-基础知识)
+    - [0.1 Python3词法](#01-python3词法)
+    - [0.2 FLEX简单使用](#02-flex简单使用)
+  - [0.4 ChocoPy 语法](#04-chocopy-语法)
+      - [ChocoPy 语法](#chocopy-语法)
+    - [0.4 BISON简单使用](#04-bison简单使用)
+      - [思考题](#思考题)
+    - [0.5 Bison 和 Flex 的关系](#05-bison-和-flex-的关系)
+  - [1. 实验要求](#1-实验要求)
+    - [主要工作](#主要工作)
+    - [提示](#提示)
+    - [1.1 目录结构](#11-目录结构)
+    - [1.2 Bonus](#12-bonus)
+    - [1.2 编译、运行和验证](#12-编译运行和验证)
+    - [1.3 提供可用的测试用例](#13-提供可用的测试用例)
+    - [1.4 评分](#14-评分)
 
 <!-- /TOC -->
 
@@ -68,9 +64,9 @@ Hilfinger也做出了很大贡献。你可以在 [这里](https://chocopy.org/ch
 
 5, String Literal
 
-$$\begin{array}{ll}\text { Literal } & \text { Value } \\ \text { "Hello" } & \text { Hello } \\ \text { "He\backslash"
-ll\backslash"o" } & \text { He"ll"o } \\ \text { "He\backslash\backslash"llo" } & \text { He\backslash"llo } \\ \text
-{ "Hell\backslasho" } & \text { (error: "\o" not recognized) }\end{array}$$
+$$\begin{array}{ll}\text { Literal } & \text { Value } \\ \text { "Hello" } & \text { Hello } \\ \text { "He}\backslash\text{"
+ll}\backslash\text{"o" } & \text { He"ll"o } \\ \text { "He}\backslash\backslash\text{"llo" } & \text { He}\backslash\text{"llo } \\ \text
+{ "Hell}{\backslash}\text{o" } & \text { (error: "\\o" not recognized) }\end{array}$$
 
 - 注：`[`,  `]` 是分开的token。`[1]`中间不得有空格。
     - `a[1]`应被识别为四个token: `a`, `[`, `1`, `]`
@@ -134,7 +130,7 @@ look, I find 2 words of 10 chars
 
 ## 0.4 ChocoPy 语法
 
-本小节将给出ChocoPy的语法，详情请参考[ChocoPy Language Reference](./doc/chocopy_language_reference.pdf)。
+本小节将给出ChocoPy的语法，详情请参考[ChocoPy Language Reference](../chocopy_language_reference.pdf)。
 
 我们将 ChocoPy 的所有规则分为五类。
 
@@ -524,40 +520,25 @@ int     INT      1       3       1      6
 1      IDENT     1       7       1      8
 ```
 
-对语法的抽象语法树输出文件如下，注意location是对子节点树的开始结束取并集。
+对语法的抽象语法树输出文件如下，注意location是对子节点树的开始结束取并集，除了PassStmt。
 
 ```json
 {
   "kind": "Program",
-  "location": [
-    1,
-    6,
-    1,
-    6
-  ],
+  "location": [1, 6, 1, 6],
   "declarations": [],
   "statements": [],
   "errors": {
     "errors": [
       {
         "kind": "CompilerError",
-        "location": [
-          1,
-          8,
-          1,
-          8
-        ],
+        "location": [ 1, 8, 1, 8],
         "message": "Parse error near token EQ: =",
         "syntax": true
       }
     ],
     "kind": "Errors",
-    "location": [
-      0,
-      0,
-      0,
-      0
-    ]
+    "location": [ 0, 0, 0, 0]
   }
 }
 ```
@@ -581,7 +562,7 @@ int     INT      1       3       1      6
 
 ### 1.2 编译、运行和验证
 
-首先fork本repo，提交即会触发评分系统，禁止提交死循环程序拥塞CI，违者一次扣 [1pts]。
+ 首先fork本repo，提交即会触发评分系统，禁止提交死循环程序拥塞CI，违者一次扣 [1pts]。
 
 * 编译
 
@@ -612,6 +593,7 @@ int     INT      1       3       1      6
 
     1. sample: 这部分测试均比较简单且单纯，适合开发时调试。
     2. fuzz: 由fuzzer生成的正确的python文件，此项不予开源。
+    3. student: 这部分由同学提供。
 
   我们使用python中的 `json.load()` 命令进行验证。将自己的生成结果和助教提供的 `xxx.ast` 进行比较。
 
@@ -622,4 +604,13 @@ int     INT      1       3       1      6
   ```
 
   **请注意助教提供的`testcase`并不能涵盖全部的测试情况，完成此部分仅能拿到基础分，请自行设计自己的`testcase`进行测试。**
-  
+### 1.3 提供可用的测试用例
+对于每个学生，你需要在资源库的根目录下创建一个名为 `tests/pa1/student/` 的文件夹，并放置20个有意义的 `*.py` 测试案例，其中10个将通过所有的编译，另外10个将不通过编译，但测试你代码的错误报告系统。请注意，你的测试案例将被用来评估所有4个项目中其他人的代码，所以要有耐心，并对你的同学狠一点。你的最终成绩将在所有学生都提交了测试案例后重新计算。这一部分占项目部分的 [6 pts] ，但你可以降低其他学生的成绩。
+
+### 1.4 评分
+
+1. 基本测试样例[22*2pts]
+2. Fuzzer 测试[16pts]
+3. Student 测试[20pts]
+4. 提供TestCase[10pts]
+5. 报告[10pts]

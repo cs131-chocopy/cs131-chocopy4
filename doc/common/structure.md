@@ -43,7 +43,6 @@
 │   │   └── chocopy_parse.hpp
 │   ├── semantic
 │   │   ├── ClassDefType.hpp
-│   │   ├── FuncType.hpp
 │   │   ├── FunctionDefType.hpp
 │   │   ├── SymbolTable.hpp
 │   │   ├── SymbolType.hpp

@@ -18,7 +18,6 @@ cmake_minimum_required(VERSION 3.11)
 
 project(CMakeHeap)
 
-
 function(heap_adjust heap_ index n)
     set(heap__ "${${heap_}}")
     list(APPEND heap__ 0)

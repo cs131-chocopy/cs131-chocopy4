@@ -1,55 +1,54 @@
 # Light IR
 
+<!-- TOC -->
+
 - [Light IR](#light-ir)
-    - [IR](#ir)
-        - [IR Features](#ir-features)
-        - [IR Format](#ir-format)
-        - [Instruction](#instruction)
-            - [Terminator Instructions](#terminator-instructions)
-                - [Ret](#ret)
-                - [Br](#br)
-            - [Standard binary operators](#standard-binary-operators)
-                - [Add](#add)
-                - [Sub](#sub)
-                - [Mul](#mul)
-                - [Div](#div)
-                - [Mod](#mod)
-            - [Memory operators](#memory-operators)
-                - [Alloca](#alloca)
-                - [Load](#load)
-                - [Store](#store)
-            - [CastInst](#castinst)
-                - [ZExt](#zext)
-                - [Trunc](#Trunc)
-            - [Riscv VExt](#vext)
-                - [VLoad](#vlw)
-                - [VStore](#vsw)
-                - [VAdd](#vadd)
-                - [VSub](#vsub)
-                - [VMul](#vmul)
-            - [Other operators](#other-operators)
-                - [ICmp](#icmp)
-                - [Call](#call)
-                - [GetElementPtr](#getelementptr)
-    - [C++ APIs](#c-apis)
-        - [核心类概念图](#核心类概念图)
-        - [BasicBlock](#basicblock)
-        - [Constant](#constant)
-        - [Function](#function)
-        - [GlobalVariable](#globalvariable)
-        - [IRBuilder](#irbuilder)
-        - [Instruction](#instruction-1)
-        - [Module](#module)
-        - [Type](#type)
-        - [User](#user)
-        - [Value](#value)
-        - [Class](#class)
+  - [LightIR](#lightir)
+    - [IR Features](#ir-features)
+    - [IR Format](#ir-format)
+    - [Instruction](#instruction)
+      - [Terminator Instructions](#terminator-instructions)
+        - [Ret](#ret)
+        - [Br](#br)
+      - [Standard binary operators](#standard-binary-operators)
+        - [Add](#add)
+        - [Sub](#sub)
+        - [Mul](#mul)
+        - [Div](#div)
+      - [Memory operators](#memory-operators)
+        - [Alloca](#alloca)
+        - [Load](#load)
+        - [Store](#store)
+      - [CastInst](#castinst)
+        - [ZExt](#zext)
+        - [Trunc](#trunc)
+      - [Riscv VExt](#riscv-vext)
+        - [Vstore](#vstore)
+        - [Vload](#vload)
+      - [Other operators](#other-operators)
+        - [ICmp](#icmp)
+        - [Call](#call)
+        - [GetElementPtr](#getelementptr)
+  - [C++ APIs](#c-apis)
+    - [核心类概念图](#核心类概念图)
+    - [BasicBlock](#basicblock)
+    - [Constant](#constant)
+    - [Function](#function)
+    - [GlobalVariable](#globalvariable)
+    - [IRBuilder](#irbuilder)
+    - [Instruction](#instruction-1)
+    - [Module](#module)
+    - [Type](#type)
+    - [User](#user)
+    - [Value](#value)
+    - [Class](#class)
+    - [总结](#总结)
+
+<!-- /TOC -->
 
 ## LightIR
 
-我们在lab3中间将会使用一个精简定义的LLVM IR，其输出与 LLVM IR 兼容，可以被 clang 编译到`.o`文件再与链接器链接到可以在riscv机器上运行的程序。`.ll`
-文件的验证可以通过 [Godbolt](https://godbolt.org/#z:OYLghAFBqd5QCxAYwPYBMCmBRdBLAF1QCcAaPECAMzwBtMA7AQwFtMQByARg9KtQYEAysib0QXACx8BBAKoBnTAAUAHpwAMvAFYTStJg1AB9U8lJL6yAngGVG6AMKpaAVxYMJAJlIOAMngMmABy7gBGmMQgABykAA6oCoS2DM5uHt7xickCAUGhLBFRsZaY1ilCBEzEBGnunlw%2BpeUCldUEeSHhkTEWVTV1GY197Z0FRTEAlBaorsTI7BwEAJ5xmFhUANQKBMSu1pv8qJsApADsAEInGgCCm9u7%2BwSnl9d395u0AsCHeJi06C4JwAzFdbh8HnsDucwe8IV8jL9/ugvCDYRD7gifjRkcC0W8MZtXAwUi90YTNoFnjiAZJ8eCKcgENUkQCAKwnNkXYGotkAEXpcI%2B5z5mwAjq5XKpBYSsaz0AA2GUYuU09BnZX3EWbMJMABems%2B33l0WV2t1xEF2qOVtuR02TOJAGtlrabkyWVUnZhjGqIAA3VB4dCTMkEzbETAEOYMB0IZ3LAB0FuT%2BsTEqlibVdNBbxFHGmtE4bN4ng4WlIqE4jm2s3mmFOXmBPFIBE0BemTpAbIViY0kgVXgVZw00TOXjOCrZ0iLHEkpfblc4vAUIA0rfb0zgsBgiBAeDIFAg60IJAAkug9PxBCIxOwpDJBIoVOpyzo9M0bHZjwwnC56no/iBF0hQ9FwWRJF%2BqT/kMEE5AwYzdFE4GfhU/S1DBDQWP8ZRQW0NSIaByEjAMmEfuhhETFwkyFsWC5vkuHB%2BH4ABqACymxngASpsLF/AA7pEmxcWeQiOAAtCxEb%2BjywDIA6BiIhAjwME6kwQLgp7EI2zakJszgsHEdBCScTbUbwbZvjRpAIJgTBYFEECdt2GiJkOACcwI8tEGhnO5Q4aOBs7zqQLDdpIibRMCkjuRoPYKhowJnGcwJsqQZYVlWHArmuG5WaQ257mghnGYelDFUZ9BRMQMleOJyDIIpwB8HQBCRKuEBhIuYSBNUyycC2xVsIIADyDC0P1DFYCwhjAOIU0HrheD%2Bpgq4MZgqhlK4bUDbwVL/IutB4GExB9c4WC7a2xB4GF3AFnwBjAAofGYPxI1rGWLbXsIojiA%2B33Pmoi66EFs0gKYxjmEdYSrpA0yoHEUFreJI1cJs4lUAwqDifgCiiMQ6Dif6YiuJg4nMGwCgrjhLSeD%2Bf7pFhQH5EhegJJBKSDFh7PwZRYHYVYeHoVzH400LozAeM/M7O0IsoRRkus9RMxzAsei7Jgiw8LRHAluli5ZSJYmSdJsnyY1s2bMpeyqaGECOHpmlENppm6fpqAlVVOnmXlWjWbZ9k9E5%2BicCFYWSGyiZcFOGjuZIXnuYOQ5pRlvBZTl66WX7znx4m7lsklPLuY047RQOIccMC9GZcuvsdhXXjV2ntdZ/XK3EEkdiSEAA)
-. 以下是简单定义，更详细的语意见[官网](https://llvm.org/docs/LangRef.html) 。
+我们在lab3中间将会使用一个精简定义的LLVM IR，其输出与 LLVM IR 兼容，可以被 clang 编译到`.o`文件再与链接器链接到可以在riscv机器上运行的程序。`.ll` 文件的验证可以通过 [Godbolt](https://godbolt.org/#z:OYLghAFBqd5QCxAYwPYBMCmBRdBLAF1QCcAaPECAMzwBtMA7AQwFtMQByARg9KtQYEAysib0QXACx8BBAKoBnTAAUAHpwAMvAFYTStJg1AB9U8lJL6yAngGVG6AMKpaAVxYMJAJlIOAMngMmABy7gBGmMQgABykAA6oCoS2DM5uHt7xickCAUGhLBFRsZaY1ilCBEzEBGnunlw%2BpeUCldUEeSHhkTEWVTV1GY197Z0FRTEAlBaorsTI7BwEAJ5xmFhUANQKBMSu1pv8qJsApADsAEInGgCCm9u7%2BwSnl9d395u0AsCHeJi06C4JwAzFdbh8HnsDucwe8IV8jL9/ugvCDYRD7gifjRkcC0W8MZtXAwUi90YTNoFnjiAZJ8eCKcgENUkQCAKwnNkXYGotkAEXpcI%2B5z5mwAjq5XKpBYSsaz0AA2GUYuU09BnZX3EWbMJMABems%2B33l0WV2t1xEF2qOVtuR02TOJAGtlrabkyWVUnZhjGqIAA3VB4dCTMkEzbETAEOYMB0IZ3LAB0FuT%2BsTEqlibVdNBbxFHGmtE4bN4ng4WlIqE4jm2s3mmFOXmBPFIBE0BemTpAbIViY0kgVXgVZw00TOXjOCrZ0iLHEkpfblc4vAUIA0rfb0zgsBgiBAeDIFAg60IJAAkug9PxBCIxOwpDJBIoVOpyzo9M0bHZjwwnC56no/iBF0hQ9FwWRJF%2BqT/kMEE5AwYzdFE4GfhU/S1DBDQWP8ZRQW0NSIaByEjAMmEfuhhETFwkyFsWC5vkuHB%2BH4ABqACymxngASpsLF/AA7pEmxcWeQiOAAtCxEb%2BjywDIA6BiIhAjwME6kwQLgp7EI2zakJszgsHEdBCScTbUbwbZvjRpAIJgTBYFEECdt2GiJkOACcwI8tEGhnO5Q4aOBs7zqQLDdpIibRMCkjuRoPYKhowJnGcwJsqQZYVlWHArmuG5WaQ257mghnGYelDFUZ9BRMQMleOJyDIIpwB8HQBCRKuEBhIuYSBNUyycC2xVsIIADyDC0P1DFYCwhjAOIU0HrheD%2Bpgq4MZgqhlK4bUDbwVL/IutB4GExB9c4WC7a2xB4GF3AFnwBjAAofGYPxI1rGWLbXsIojiA%2B33Pmoi66EFs0gKYxjmEdYSrpA0yoHEUFreJI1cJs4lUAwqDifgCiiMQ6Dif6YiuJg4nMGwCgrjhLSeD%2Bf7pFhQH5EhegJJBKSDFh7PwZRYHYVYeHoVzH400LozAeM/M7O0IsoRRkus9RMxzAsei7Jgiw8LRHAluli5ZSJYmSdJsnyY1s2bMpeyqaGECOHpmlENppm6fpqAlVVOnmXlWjWbZ9k9E5%2BicCFYWSGyiZcFOGjuZIXnuYOQ5pRlvBZTl66WX7znx4m7lsklPLuY047RQOIccMC9GZcuvsdhXXjV2ntdZ/XK3EEkdiSEAA). 以下是简单定义，更详细的语意见[官网](https://llvm.org/docs/LangRef.html) 。
 
 ### IR Features
 
@@ -689,7 +688,8 @@
 
 ### 总结
 
-助教在接口文档里筛选了可能会需要用到的接口，如果对API有问题的请移步issue讨论，本次`lightir`接口由助教自行设计实现，并做了大量测试，如有对助教的实现方法有异议或者建议的也请移步issue讨论，**
-请不要直接修改助教的代码，若因修改助教代码造成后续实验仓库合并的冲突请自行解决**。
+助教在接口文档里筛选了可能会需要用到的接口，如果对API有问题的请移步issue讨论，本次`lightir`接口由助教自行设计实现，并做了大量测试，如有对助教的实现方法有异议或者建议的也请移步issue讨论，
+
+**请碰到问题直接修改代码，尤其是GEP部分，如果觉得其他同学需要你的代码，请提交PR**。
 
 **注**：由于`PA3 bonus`需要直接修改`ir`结构，为了方便同学们实现，助教将大部分私有变量(例如指令链表等)直接返回引用，请注意自己对私有变量的修改。
