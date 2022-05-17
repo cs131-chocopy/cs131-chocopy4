@@ -38,6 +38,8 @@ public:
 
     constexpr bool is_func_type() const { return tid_ == type::FUNC; }
 
+    constexpr bool is_object_type() const { return tid_ == type::OBJECT; }
+
     constexpr bool is_vector_type() const { return tid_ == type::VECTOR; }
 
     constexpr bool is_list_type() const { return tid_ == type::LIST; }
@@ -218,7 +220,7 @@ public:
     string get_label() const;
     Class *get_class() const { return stored_; };
 
-    virtual string print() { return "%"+label_; }
+    virtual string print() { return "%"+label_+"_type"; }
 
 private:
     string label_;

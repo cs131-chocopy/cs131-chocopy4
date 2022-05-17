@@ -23,7 +23,6 @@ before_main:
 	lw	ra, 12(sp)
 	addi	sp, sp, 16
 	ret
-
 	#NO_APP
 .Lfunc_end0:
 	.size	before_main, .Lfunc_end0-before_main
@@ -34,12 +33,12 @@ before_main:
 	.type	main,@function
 main:
 	.cfi_startproc
-	addi	sp, sp, -144
-	.cfi_def_cfa_offset 144
-	sw	ra, 140(sp)
-	sw	s0, 136(sp)
-	sw	s1, 132(sp)
-	sw	s2, 128(sp)
+	addi	sp, sp, -16
+	.cfi_def_cfa_offset 16
+	sw	ra, 12(sp)
+	sw	s0, 8(sp)
+	sw	s1, 4(sp)
+	sw	s2, 0(sp)
 	.cfi_offset ra, -4
 	.cfi_offset s0, -8
 	.cfi_offset s1, -12
@@ -47,134 +46,63 @@ main:
 	#APP
 	mv	s0, sp
 	#NO_APP
+	li	a0, 2
 	li	a1, 1
-	sw	a1, 124(sp)
-	lb	a2, 128(sp)
-	lw	a3, 132(sp)
-	lw	a4, 136(sp)
-	li	a5, 2
-	sw	a5, 40(sp)
-	sw	a5, 120(sp)
-	lb	a6, 124(sp)
-	lw	a7, 128(sp)
-	lw	a0, 132(sp)
-	mv	t0, sp
-	sw	a0, 0(t0)
-	mv	a0, a5
+	li	a2, 2
 	call	conslist@plt
-	lw	a1, 40(sp)
-	lw	a2, 0(a0)
-	sw	a2, 64(sp)
-	lb	a2, 4(a0)
-	sw	a2, 68(sp)
-	lw	a2, 8(a0)
-	sw	a2, 72(sp)
-	lw	a0, 12(a0)
-	sw	a0, 76(sp)
-	sw	a1, 116(sp)
-	lb	a2, 120(sp)
-	lw	a3, 124(sp)
-	lw	a4, 128(sp)
-	li	a5, 3
-	sw	a5, 112(sp)
-	lb	a6, 116(sp)
-	lw	a7, 120(sp)
-	lw	a0, 124(sp)
-	mv	t0, sp
-	sw	a0, 0(t0)
-	mv	a0, a1
+	lw	s2, 0(a0)
+	li	a0, 2
+	li	a1, 2
+	li	a2, 3
 	call	conslist@plt
-	mv	a1, a0
-	lw	a0, 40(sp)
-	lw	a2, 0(a1)
-	sw	a2, 80(sp)
-	lb	a2, 4(a1)
-	sw	a2, 84(sp)
-	lw	a2, 8(a1)
-	sw	a2, 88(sp)
-	lw	a1, 12(a1)
-	sw	a1, 60(sp)
+	lw	s1, 0(a0)
+	li	a0, 2
 	li	a1, 4
-	sw	a1, 92(sp)
-	sw	a1, 108(sp)
-	lb	a2, 112(sp)
-	lw	a3, 116(sp)
-	lw	a4, 120(sp)
-	li	a5, 5
-	sw	a5, 104(sp)
-	lb	a6, 108(sp)
-	lw	a7, 112(sp)
-	lw	t0, 116(sp)
-	mv	t1, sp
-	sw	t0, 0(t1)
+	li	a2, 5
 	call	conslist@plt
-	mv	a1, a0
-	lw	a0, 40(sp)
-	lw	a2, 0(a1)
-	sw	a2, 56(sp)
-	lb	a2, 4(a1)
-	sw	a2, 52(sp)
-	lw	a2, 8(a1)
-	sw	a2, 48(sp)
-	lw	a1, 12(a1)
-	sw	a1, 44(sp)
+	lw	s0, 0(a0)
+	li	a0, 2
 	li	a1, 6
-	sw	a1, 100(sp)
-	lb	a2, 104(sp)
-	lw	a3, 108(sp)
-	lw	a4, 112(sp)
-	li	a5, 7
-	sw	a5, 96(sp)
-	lb	a6, 100(sp)
-	lw	a7, 104(sp)
-	lw	t0, 108(sp)
-	mv	t1, sp
-	sw	t0, 0(t1)
+	li	a2, 7
 	call	conslist@plt
-	lw	t5, 44(sp)
-	lw	t4, 48(sp)
-	lw	t3, 52(sp)
-	lw	t2, 56(sp)
-	lw	t0, 60(sp)
-	lw	a1, 64(sp)
-	lw	a2, 68(sp)
-	lw	a3, 72(sp)
-	lw	a4, 76(sp)
-	lw	a5, 80(sp)
-	lw	a6, 84(sp)
-	lw	a7, 88(sp)
-	mv	t1, a0
-	lw	a0, 92(sp)
-	lw	t6, 0(t1)
-	lb	s0, 4(t1)
-	lw	s1, 8(t1)
-	lw	s2, 12(t1)
-	mv	t1, sp
-	sw	s2, 32(t1)
-	sw	s1, 28(t1)
-	sw	s0, 24(t1)
-	sw	t6, 20(t1)
-	sw	t5, 16(t1)
-	sw	t4, 12(t1)
-	sw	t3, 8(t1)
-	sw	t2, 4(t1)
-	sw	t0, 0(t1)
+	lw	a4, 0(a0)
+	li	a0, 4
+	mv	a1, s2
+	mv	a2, s1
+	mv	a3, s0
 	call	conslist@plt
-	call	($crunch)@plt
-	lui	a0, %hi(x)
-	lw	a0, %lo(x)(a0)
+	mv	s0, a0
+	call	($len)@plt
+	lw	a1, 0(s0)
+	lw	a1, 16(a1)
+	slli	a0, a0, 2
+	add	a0, a0, a1
+	addi	s0, a0, -4
+	mv	a0, s0
+	call	($len)@plt
+	li	a2, 0
+	lui	a3, %hi(x)
+.LBB1_1:
+	lw	a1, 0(s0)
+	lw	a1, 16(a1)
+	add	a1, a1, a2
+	lw	a1, 0(a1)
+	sw	a1, %lo(x)(a3)
+	addi	a0, a0, -1
+	addi	a2, a2, 4
+	bnez	a0, .LBB1_1
+	mv	a0, a1
 	call	makeint@plt
 	call	print@plt
 	#APP
 	li	a7, 93	#exit system call
 	ecall	
-
 	#NO_APP
-	lw	ra, 140(sp)
-	lw	s0, 136(sp)
-	lw	s1, 132(sp)
-	lw	s2, 128(sp)
-	addi	sp, sp, 144
+	lw	ra, 12(sp)
+	lw	s0, 8(sp)
+	lw	s1, 4(sp)
+	lw	s2, 0(sp)
+	addi	sp, sp, 16
 	ret
 .Lfunc_end1:
 	.size	main, .Lfunc_end1-main
@@ -185,39 +113,35 @@ main:
 	.type	$crunch,@function
 $crunch:
 	.cfi_startproc
-	addi	sp, sp, -32
-	.cfi_def_cfa_offset 32
-	sw	ra, 28(sp)
+	addi	sp, sp, -16
+	.cfi_def_cfa_offset 16
+	sw	ra, 12(sp)
+	sw	s0, 8(sp)
 	.cfi_offset ra, -4
-	addi	a1, sp, 24
-	sw	a1, 16(sp)
-	sw	a0, 20(sp)
-	addi	a0, sp, 16
-	call	($crunch.make_z)@plt
-	lui	a0, %hi(x)
-	lw	a0, %lo(x)(a0)
-	sw	a0, 8(sp)
-	sw	a0, 12(sp)
-	j	.LBB2_1
-.LBB2_1:
-	lw	a1, 8(sp)
-	lw	a0, 12(sp)
-	xor	a1, a1, a0
-	snez	a1, a1
-	sw	a1, 0(sp)
-	addi	a0, a0, 1
-	sw	a0, 4(sp)
-	j	.LBB2_2
-.LBB2_2:
-	lw	a0, 0(sp)
-	lw	a2, 4(sp)
+	.cfi_offset s0, -8
+	mv	s0, a0
+	call	($len)@plt
+	lw	a1, 0(s0)
+	lw	a1, 16(a1)
+	slli	a0, a0, 2
+	add	a0, a0, a1
+	addi	s0, a0, -4
+	mv	a0, s0
+	call	($len)@plt
 	li	a1, 0
-	sw	a2, 12(sp)
-	bne	a0, a1, .LBB2_1
-	j	.LBB2_3
-.LBB2_3:
-	lw	ra, 28(sp)
-	addi	sp, sp, 32
+	lui	a2, %hi(x)
+.LBB2_1:
+	lw	a3, 0(s0)
+	lw	a3, 16(a3)
+	add	a3, a3, a1
+	lw	a3, 0(a3)
+	sw	a3, %lo(x)(a2)
+	addi	a0, a0, -1
+	addi	a1, a1, 4
+	bnez	a0, .LBB2_1
+	lw	ra, 12(sp)
+	lw	s0, 8(sp)
+	addi	sp, sp, 16
 	ret
 .Lfunc_end2:
 	.size	$crunch, .Lfunc_end2-($crunch)
@@ -228,36 +152,31 @@ $crunch:
 	.type	$crunch.make_z,@function
 $crunch.make_z:
 	.cfi_startproc
-	addi	sp, sp, -32
-	.cfi_def_cfa_offset 32
-	sw	ra, 28(sp)
+	addi	sp, sp, -16
+	.cfi_def_cfa_offset 16
+	sw	ra, 12(sp)
+	sw	s0, 8(sp)
+	sw	s1, 4(sp)
 	.cfi_offset ra, -4
-	lw	a0, 4(a0)
-	li	a1, 0
-	sw	a1, 24(sp)
+	.cfi_offset s0, -8
+	.cfi_offset s1, -12
+	mv	s0, a0
+	lw	s1, 4(a0)
+	mv	a0, s1
 	call	($len)@plt
-	sw	a0, 16(sp)
-	sw	a0, 20(sp)
-	j	.LBB3_1
-.LBB3_1:
-	lw	a1, 16(sp)
-	lw	a0, 20(sp)
-	xor	a1, a1, a0
-	snez	a1, a1
-	sw	a1, 8(sp)
-	addi	a0, a0, 1
-	sw	a0, 12(sp)
-	j	.LBB3_2
-.LBB3_2:
-	lw	a0, 8(sp)
-	lw	a2, 12(sp)
 	li	a1, 0
-	sw	a2, 20(sp)
-	bne	a0, a1, .LBB3_1
-	j	.LBB3_3
-.LBB3_3:
-	lw	ra, 28(sp)
-	addi	sp, sp, 32
+.LBB3_1:
+	lw	a2, 0(s1)
+	lw	a2, 16(a2)
+	add	a2, a2, a1
+	sw	a2, 0(s0)
+	addi	a0, a0, -1
+	addi	a1, a1, 4
+	bnez	a0, .LBB3_1
+	lw	ra, 12(sp)
+	lw	s0, 8(sp)
+	lw	s1, 4(sp)
+	addi	sp, sp, 16
 	ret
 .Lfunc_end3:
 	.size	$crunch.make_z, .Lfunc_end3-($crunch.make_z)
@@ -347,10 +266,10 @@ $str$dispatchTable:
 $.list$prototype:
 	.word	4294967295
 	.word	5
-	.zero	16
+	.zero	4
 	.word	0
 	.word	0
-	.size	$.list$prototype, 32
+	.size	$.list$prototype, 20
 
 	.type	x,@object
 	.section	.sbss,"aw",@nobits
@@ -364,14 +283,6 @@ x:
 	.p2align	2
 	.word	before_main
 	.section	".note.GNU-stack","",@progbits
-
-
-
-
-
-
-
-
 
 
 

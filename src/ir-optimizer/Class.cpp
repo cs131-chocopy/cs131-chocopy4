@@ -12,7 +12,7 @@ void Class::add_method(Function *func) {
         (*this->methods_)[std::distance(this->methods_->begin(), idx)] = func;
         return;
     }
-    this->methods_->push_back(func);
+    this->methods_->emplace_back(func);
 }
 
 Class::Class(Module *m, const string &name_, int type_tag, Class *super_class_info, bool with_dispatch_table_,
@@ -236,6 +236,8 @@ int Class::get_method_offset(string method) const {
                              return tmp->get_name() == method;
                          }));
 }
+
+Type *Class::get_offset_method(int idx_) { return this->methods_->at(idx_)->get_type(); }
 
 string AttrInfo::print() {
     string const_ir;

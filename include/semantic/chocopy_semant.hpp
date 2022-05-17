@@ -160,6 +160,7 @@ public:
     void visit(parser::IndexAssignStmt &) override;
     void visit(parser::VarAssignExpr &) override;
     void visit(parser::IndexAssignExpr &) override;
+    void visit(parser::TypedVar &node) override{};
     void visit(parser::Program &node) override;
 
     /** type checker attributes and their chocopy typing judgement analogues:

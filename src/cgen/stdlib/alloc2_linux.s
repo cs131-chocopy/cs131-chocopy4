@@ -14,18 +14,21 @@
   sw a1, -28(fp)
   li a2, 4                                 # Word size in bytes
   mul a2, a1, a2                           # Calculate number of bytes to allocate
-  add a2, gp, a2                           # Estimate where GP will move
-  bgeu a2, s11, alloc2_15                  # Go to OOM handler if too large
   lw t0, -28(fp)                           # Get size of object in words
   slli a0, t0, 2
   call sbrk
   lw a1, -4(fp)
-  lw t0, 0(a1)
-  sw t0, 0(a0)
-  lw t0, 1(a1)
-  sw t0, 1(a0)
-  lw t0, 2(a1)
-  sw t0, 2(a0)
+alloc2_16:                                 # Copy-loop header
+  lw t1, 0(a1)                             # Load next word from src
+  sw t1, 0(a0)                             # Store next word to dest
+  addi a1, a1, 4                           # Increment src
+  addi a0, a0, 4                           # Increment dest
+  addi t0, t0, -1                          # Decrement counter
+  bne t0, zero, alloc2_16                  # Loop if more words left to copy
+alloc2_donw:
+  lw t0, -28(fp)                           # Get size of object in words
+  slli a1, t0,2
+  sub a0, a0,a1
   lw s1, -8(fp)
   lw a5, -12(fp)
   lw a4, -16(fp)

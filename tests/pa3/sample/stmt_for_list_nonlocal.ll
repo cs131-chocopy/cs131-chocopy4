@@ -1,30 +1,13 @@
 ; ModuleID = 'ChocoPy code'
-source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
+source_filename = "/Users/yiweiyang/project/bak/chocopy_test/pa3/sample/stmt_for_list_nonlocal.py"
 
-%$union.type = type {
-  %$int$dispatchTable_type*,
-  %$bool$dispatchTable_type*,
-  %$str$dispatchTable_type*,
-  %$object$dispatchTable_type*
-}
+%$union.type = type { i32 }
 
-%$union.len = type {
-  %$.list$prototype_type*,
-  %$str$prototype_type*
-}
+%$union.len = type { i32 }
 
-%$union.put = type {
-  %$int$prototype_type*,
-  %$bool$prototype_type*,
-  %$str$prototype_type*
-}
+%$union.put = type { i32 }
 
-%$union.conslist = type {
-  i32,
-  i1,
-  %$str$prototype_type*,
-  %$.list$prototype_type*
-}
+%$union.conslist = type { i32 }
 
 %$object$prototype_type  = type  {
   i32,
@@ -37,10 +20,10 @@ source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
   %$object$dispatchTable_type* @$object$dispatchTable
 }
 %$object$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$object$dispatchTable = global %$object$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$int$prototype_type  = type  {
@@ -56,10 +39,10 @@ source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
   i32 0
 }
 %$int$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$int$dispatchTable = global %$int$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$bool$prototype_type  = type  {
@@ -75,10 +58,10 @@ source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
   i1 0
 }
 %$bool$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$bool$dispatchTable = global %$bool$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$str$prototype_type  = type  {
@@ -96,10 +79,10 @@ source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
   i8* inttoptr (i32 0 to i8*)
 }
 %$str$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$str$dispatchTable = global %$str$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$.list$prototype_type  = type  {
@@ -112,12 +95,12 @@ source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
 @$.list$prototype  = global %$.list$prototype_type{
   i32 -1,
   i32 5,
-  %$union.type {%$int$dispatchTable_type* undef,  %$bool$dispatchTable_type* undef,  %$str$dispatchTable_type* undef,  %$object$dispatchTable_type* undef},
+  %$union.type {i32 0 },
   i32 0,
   %$union.conslist* inttoptr (i32 0 to %$union.conslist*)
 }
 
-%$class.anon_make_z = type {i32* ,
+%$class.anon_make_z = type {%$.list$prototype_type* ,
   %$.list$prototype_type* 
 }
 
@@ -130,10 +113,11 @@ source_filename = "../tests/pa3/sample/stmt_for_list_nonlocal.py"
 @const_6 = external global %$str$prototype_type
 @const_7 = external global %$str$prototype_type
 @x = global i32 0
-declare %$object$dispatchTable_type @$object.__init__(%$object$dispatchTable_type)
+declare void @$object.__init__(%$object$prototype_type*)
 declare void @heap.init()
-declare %$str$dispatchTable_type* @initchars(i8*)
-declare %$int$dispatchTable_type* @noconv()
+declare %$str$prototype_type* @initchars(i8)
+declare %$int$prototype_type* @noconv()
+declare %$.list$prototype_type* @nonlist()
 declare void @error.OOB()
 declare void @error.None()
 declare void @error.Div()
@@ -145,8 +129,9 @@ declare %$bool$prototype_type* @makebool(i1)
 declare %$int$prototype_type* @makeint(i32)
 declare %$str$prototype_type* @makestr(%$str$prototype_type*)
 declare %$str$prototype_type* @$input()
-declare i1 @streql(%$str$prototype_type*)
-declare i1 @strneql(%$str$prototype_type*)
+declare %$object$prototype_type* @alloc(%$object$prototype_type*)
+declare i1 @streql(%$str$prototype_type*, %$str$prototype_type*)
+declare i1 @strneql(%$str$prototype_type*, %$str$prototype_type*)
 declare %$str$prototype_type* @strcat(%$str$prototype_type*, %$str$prototype_type*)
 @llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @before_main, i8* null }]
 define void @before_main() {
@@ -218,28 +203,40 @@ label0:
 define void @$crunch(%$.list$prototype_type* %arg0) {
 
 label1:
-  %op2 = alloca i32
+  %op2 = alloca %$.list$prototype_type
   %op3 = alloca %$class.anon_make_z, align 4
   %op4 = getelementptr %$class.anon_make_z, %$class.anon_make_z* %op3, i32 0, i32 0
-  store i32* %op2, i32** %op4
+  store %$.list$prototype_type* %op2, %$.list$prototype_type** %op4
   %op5 = getelementptr %$class.anon_make_z, %$class.anon_make_z* %op3, i32 0, i32 1
   store %$.list$prototype_type* %arg0, %$.list$prototype_type** %op5
   call void @$crunch.make_z(%$class.anon_make_z* %op3)
-  %op6 = load i32, i32*@x
-  br label %label7
+  %op6 = load %$.list$prototype_type*, %$.list$prototype_type** %op4
+  %op7 = alloca i32
+  store i32 0, i32* %op7
+  %op8 = load i32, i32* %op7
+  %op9 = bitcast %$.list$prototype_type* %op6 to %$union.len*
+  %op10 = call i32 @$len(%$union.len* %op9)
+  %op11 = sub i32 %op10, 1
+  br label %label12
 
-label7:                                                ; preds = %label1, %label13
-  %op8 = phi i32 [ %op6, %label1 ], [ %op11, %label13 ]
-  %op9 = icmp ne i32 %op6, %op8
-  %op10 = getelementptr i32, i32* %op2, i32 %op8
-  %op11 = add i32 %op8, 1
-  %op12 = load i32, i32* %op10
-  br label %label13
+label12:                                                ; preds = %label1, %label23
+  %op13 = phi i32 [ %op8, %label1 ], [ %op18, %label23 ]
+  %op14 = icmp ne i32 %op11, %op13
+  %op15 = bitcast %$.list$prototype_type* %op6 to %$.list$prototype_type**
+  %op16 = load %$.list$prototype_type*, %$.list$prototype_type** %op15
+  %op17 = getelementptr %$.list$prototype_type, %$.list$prototype_type* %op16, i32 0, i32 4
+  %op18 = add i32 %op13, 1
+  %op19 = load %$union.conslist*, %$union.conslist** %op17
+  %op20 = bitcast %$union.conslist* %op19 to i32*
+  %op21 = getelementptr i32, i32* %op20, i32 %op13
+  %op22 = load i32, i32* %op21
+  store i32 %op22, i32*@x
+  br label %label23
 
-label13:                                                ; preds = %label7
-  br  i1 %op9, label %label7, label %label14
+label23:                                                ; preds = %label12
+  br  i1 %op14, label %label12, label %label24
 
-label14:                                                ; preds = %label13
+label24:                                                ; preds = %label23
   ret void
 }
 define void @$crunch.make_z(%$class.anon_make_z* %arg0) {
@@ -250,24 +247,29 @@ label1:
   %op4 = load %$.list$prototype_type*, %$.list$prototype_type** %op3
   %op5 = alloca i32
   store i32 0, i32* %op5
-  %op6 = bitcast %$.list$prototype_type* %op4 to %$union.len*
-  %op7 = call i32 @$len(%$union.len* %op6)
-  br label %label8
+  %op6 = load i32, i32* %op5
+  %op7 = bitcast %$.list$prototype_type* %op4 to %$union.len*
+  %op8 = call i32 @$len(%$union.len* %op7)
+  %op9 = sub i32 %op8, 1
+  br label %label10
 
-label8:                                                ; preds = %label1, %label17
-  %op9 = phi i32 [ %op7, %label1 ], [ %op12, %label17 ]
-  %op10 = icmp ne i32 %op7, %op9
-  %op11 = getelementptr %$.list$prototype_type, %$.list$prototype_type* %op4, i32 0, i32 4
-  %op12 = add i32 %op9, 1
-  %op13 = load %$union.conslist*, %$union.conslist** %op11
-  %op14 = bitcast %$union.conslist* %op13 to i32*
-  %op15 = getelementptr i32, i32* %op14, i32 %op9
-  %op16 = load i32, i32* %op15
-  br label %label17
+label10:                                                ; preds = %label1, %label21
+  %op11 = phi i32 [ %op6, %label1 ], [ %op16, %label21 ]
+  %op12 = icmp ne i32 %op9, %op11
+  %op13 = bitcast %$.list$prototype_type* %op4 to %$.list$prototype_type**
+  %op14 = load %$.list$prototype_type*, %$.list$prototype_type** %op13
+  %op15 = getelementptr %$.list$prototype_type, %$.list$prototype_type* %op14, i32 0, i32 4
+  %op16 = add i32 %op11, 1
+  %op17 = load %$union.conslist*, %$union.conslist** %op15
+  %op18 = bitcast %$union.conslist* %op17 to %$.list$prototype_type**
+  %op19 = getelementptr %$.list$prototype_type*, %$.list$prototype_type** %op18, i32 %op11
+  %op20 = bitcast %$.list$prototype_type** %op19 to %$.list$prototype_type*
+  store %$.list$prototype_type* %op20, %$.list$prototype_type** %op2
+  br label %label21
 
-label17:                                                ; preds = %label8
-  br  i1 %op10, label %label8, label %label18
+label21:                                                ; preds = %label10
+  br  i1 %op12, label %label10, label %label22
 
-label18:                                                ; preds = %label17
+label22:                                                ; preds = %label21
   ret void
 }

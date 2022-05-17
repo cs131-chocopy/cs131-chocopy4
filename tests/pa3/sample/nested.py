@@ -7,5 +7,4 @@ def foo(x: int) -> int:
             return y
         return baz()
     return bar()
-    
 print(foo(g))

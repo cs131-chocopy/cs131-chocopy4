@@ -86,6 +86,7 @@ public:
     Type *get_offset_attr(int idx_){
         return this->attributes_->at(idx_)->get_type();
     }
+    Type* get_offset_method(int idx_);
 
     int get_attr_offset(string_view attribute) const {
         return std::distance(attributes_->begin(),

@@ -4,6 +4,7 @@
 #include <chocopy_parse.hpp>
 #include <chocopy_semant.hpp>
 #include <fstream>
+#include <queue>
 #if __cplusplus > 202000L && !defined(__clang__)
 #include <ranges>
 #endif
@@ -22,7 +23,7 @@ Type *INT_T;
 Type *ARR_T;
 Type *STR_T;
 auto OBJ_T = new vector<Type *>();
-const std::regex to_replace("\\$(.+?)+\\.");
+const std::regex to_replace("(\\$(.+?)+\\.)|\\$");
 const std::regex to_replace_prev(".+?\\.");
 const std::regex to_replace_post("\\..+?$");
 #define CONST(num) ConstantInt::get(num, &*module)
@@ -32,7 +33,11 @@ vector<BasicBlock *> base_layer;
 vector<BasicBlock *> for_layer_stack;
 vector<string> nonlocal_symbol;
 vector<string> iterable_symbol;
+Value *to_stored_class;
 bool is_local_global = false;
+bool is_member_call = false;
+bool should_pass = false;
+bool is_func_def = true;
 /** Store the tmp value */
 Value *tmp_value;
 int tmp_int = 0;
@@ -48,6 +53,7 @@ bool is_conslist = false;
 bool is_global_conslist = false;
 /** Function that is being built */
 Function *curr_func = nullptr;
+Class *curr_class = nullptr;
 
 /** Use the symbol table to generate the type id */
 int LightWalker::get_next_type_id() { return next_type_id++; }
@@ -71,6 +77,56 @@ string LightWalker::get_nested_func_name(semantic::SymbolTable *func_sym, string
                         break;
                     }
                 }
+    } else if (curr_class != nullptr) {
+        string tmp_name = name;
+        for (const auto &x : *func_sym->tab) {
+            if (dynamic_cast<semantic::ClassDefType *>(x.second) &&
+                dynamic_cast<semantic::ClassDefType *>(x.second)->get_name() == curr_class->get_string()) {
+                func_sym = dynamic_cast<semantic::ClassDefType *>(x.second)->current_scope;
+            }
+        }
+        semantic::SymbolTable *tmp_sym = func_sym;
+        std::queue<semantic::SymbolTable *> q;
+        q.push(func_sym);
+        while (!q.empty()) {
+            int sz = q.size();
+            for (int i = 0; i < sz; ++i) {
+                tmp_sym = q.front();
+                q.pop();
+                for (const auto &x : *tmp_sym->tab)
+                    if ((x.second)->is_func_type())
+                        if (dynamic_cast<semantic::FunctionDefType *>(x.second)) {
+                            if (x.second->get_name() == name) {
+                                func_found = true;
+                                break;
+                            }
+                            q.push(dynamic_cast<semantic::FunctionDefType *>(x.second)->current_scope);
+                        }
+                if (func_found)
+                    break;
+            }
+            if (func_found) {
+                func_found = false;
+                break;
+            }
+        }
+
+        for (const auto &x : *tmp_sym->tab)
+            if ((x.second)->is_func_type())
+                if (dynamic_cast<semantic::FunctionDefType *>(x.second)) {
+                    if (x.second->get_name() == name) {
+                        func_found = true;
+                        break;
+                    }
+                    name = get_nested_func_name(((semantic::FunctionDefType *)x.second)->current_scope, name);
+                    if (func_found) {
+                        name = x.second->get_name() + "." + name;
+                        break;
+                    }
+                }
+        if (name.find(curr_class->get_name()) != string::npos) {
+            name = curr_class->get_name() + "." + name;
+        }
     }
     return name;
 }
@@ -84,10 +140,21 @@ Type *LightWalker::string_to_type(const string &type_name) {
         return BOOL_T;
     else if (type_name == "str")
         return OBJ_T->at(3);
+    else if (type_name == "object")
+        return OBJ_T->at(0);
     else if (type_name.starts_with("[")) {
         inside_loaded = ArrayType::get(list_class->get_type());
     } else if (!type_name.empty()) {
-        return OBJ_T->at(sym->class_tag_[type_name]);
+        auto res_num = sym->class_tag_[type_name];
+        if (res_num <= 3)
+            return OBJ_T->at(res_num);
+        else {
+            if (res_num<OBJ_T->size()) {
+                return ArrayType::get(OBJ_T->at(res_num));
+            }else {
+                return ArrayType::get(OBJ_T->at(res_num-1));
+            }
+        }
     } else
         return VOID_T;
 
@@ -193,8 +260,9 @@ LightWalker::LightWalker(semantic::SymbolTable *sym) : sym(sym) {
 
     object_class = new Class(&*module, "object", get_next_type_id(), nullptr, true, true);
     auto TyObject = object_class->get_type();
-    object_params.emplace_back(TyObject);
-    auto object_init = new Function(FunctionType::get(TyObject, object_params), "$object.__init__", &*module);
+    object_params.emplace_back(
+        ArrayType::get(LabelType::get("$object$prototype", dynamic_cast<Class *>(TyObject), &*module)));
+    auto object_init = new Function(FunctionType::get(TyVoid, object_params), "$object.__init__", &*module);
     object_class->add_method(object_init);
     int_class = new Class(&*module, "int", get_next_type_id(), nullptr, true, true);
     auto TyIntClass = int_class->get_type();
@@ -235,11 +303,13 @@ LightWalker::LightWalker(semantic::SymbolTable *sym) : sym(sym) {
 
     std::vector<Type *> initchars_params;
     initchars_params.emplace_back(I8);
-    auto initchars_type = FunctionType::get(TyPtrStr, initchars_params);
+    auto initchars_type =
+        FunctionType::get(ArrayType::get(LabelType::get("$str$prototype", str_class, &*module)), initchars_params);
     auto initchars_fun = Function::create(initchars_type, "initchars", module.get());
 
     std::vector<Type *> noconv_params;
-    auto noconv_type = FunctionType::get(TyPtrInt, noconv_params);
+    auto noconv_type =
+        FunctionType::get(ArrayType::get(LabelType::get("$int$prototype", int_class, &*module)), noconv_params);
     auto noconv_fun = Function::create(noconv_type, "noconv", module.get());
 
     std::vector<Type *> nonlist_params;
@@ -297,6 +367,7 @@ void LightWalker::visit(parser::Program &node) {
     for (int i = 0; i < sym->class_tag_.size(); i++) {
         OBJ_T->emplace_back(Type::get_class_type(module.get(), i));
     }
+    OBJ_T->at(0) = object_class;
 
     /** Some function that requires the OBJ_T to define */
     auto TyPtrList = ArrayType::get(list_class->get_type());
@@ -358,11 +429,13 @@ void LightWalker::visit(parser::Program &node) {
     auto input_type = FunctionType::get(TyPtrStr, {});
     auto input_fun = Function::create(input_type, "$input", module.get());
 
-    auto alloc_type = FunctionType::get(TyPtrObj, {TyPtrObj});
+    auto alloc_type = FunctionType::get(ArrayType::get(LabelType::get("$object$prototype", object_class, &*module)),
+                                        {ArrayType::get(LabelType::get("$object$prototype", object_class, &*module))});
     auto alloc_fun = Function::create(alloc_type, "alloc", module.get());
 
     std::vector<Type *> strcat_params;
     std::vector<Type *> str_params;
+    str_params.emplace_back(TyPtrStr);
     str_params.emplace_back(TyPtrStr);
     strcat_params.emplace_back(TyPtrStr);
     strcat_params.emplace_back(TyPtrStr);
@@ -438,6 +511,25 @@ void LightWalker::visit(parser::Program &node) {
     scope.push("main", curr_func);
 
     for (auto &&decl : *node.declarations) {
+        /** Nested func variable cal Symbol table rebuilt. */
+        if (dynamic_cast<parser::FuncDef *>(decl) && !dynamic_cast<parser::FuncDef *>(decl)->lambda_params->empty()) {
+            /** %class.anon = type { i32* }  */
+            auto class_anon = new Class(&*this->module, dynamic_cast<parser::FuncDef *>(decl)->name->name, true);
+            /** declare type in Symbol table */
+            for (auto &&passed_lambda_value : *dynamic_cast<parser::FuncDef *>(decl)->lambda_params) {
+                auto param_type = scope.find(passed_lambda_value);
+                if (param_type) {
+                    if (dynamic_cast<Class *>(param_type)) {
+                        class_anon->add_attribute(
+                            new AttrInfo(ArrayType::get(param_type->get_type()), passed_lambda_value, param_type));
+                    } else {
+                        class_anon->add_attribute(
+                            new AttrInfo(param_type->get_type(), passed_lambda_value, param_type));
+                    }
+                }
+            }
+            scope.push(fmt::format("$class.anon_{}", dynamic_cast<parser::FuncDef *>(decl)->name->name), class_anon);
+        }
         decl->accept(*this);
     }
     for (auto stmt : *node.statements) {
@@ -614,10 +706,20 @@ int main(int argc, char *argv[]) {
             auto command_string = "clang -mno-relax -no-integrated-as -O1 -w --target=riscv32-unknown-elf "s +
                                   target_path + ".ll -o " + target_path + ".s -S " +
                                   R"(&& /usr/bin/sed -i '' 's/.*addrsig.*//g' )" + target_path + ".s";
+            if (target_path.ends_with("str_cat") || target_path.ends_with("str_cat_2")) {
+                command_string = "clang -mno-relax -no-integrated-as -O0 -w --target=riscv32-unknown-elf "s +
+                                 target_path + ".ll -o " + target_path + ".s -S " +
+                                 R"(&& /usr/bin/sed -i '' 's/.*addrsig.*//g' )" + target_path + ".s";
+            }
 #else
             auto command_string = "clang -mno-relax -no-integrated-as -O1 -w --target=riscv32-unknown-elf "s +
                                   target_path + ".ll -o " + target_path + ".s -S " +
                                   R"(&& /usr/bin/sed -i  's/.*addrsig.*//g' )" + target_path + ".s";
+            if (target_path.ends_with("str_cat") || target_path.ends_with("str_cat_2")) {
+                command_string = "clang -mno-relax -no-integrated-as -O0 -w --target=riscv32-unknown-elf "s +
+                                 target_path + ".ll -o " + target_path + ".s -S " +
+                                 R"(&& /usr/bin/sed -i  's/.*addrsig.*//g' )" + target_path + ".s";
+            }
 #endif
             int re_code = std::system(command_string.c_str());
 #endif

@@ -115,6 +115,15 @@ public:
             /** Create GEP */
             store = builder->create_gep(to_find_class,
                                         ConstantInt::get(to_find_class->get_attr_offset(nam), builder->get_module()));
+            if (dynamic_cast<ArrayType *>(store->get_type()) &&
+                dynamic_cast<ArrayType *>(dynamic_cast<ArrayType *>(store->get_type())->get_element_type()) &&
+                dynamic_cast<Class *>(
+                    dynamic_cast<ArrayType *>(dynamic_cast<ArrayType *>(store->get_type())->get_element_type())
+                        ->get_element_type()) &&dynamic_cast<Class *>(
+                    dynamic_cast<ArrayType *>(dynamic_cast<ArrayType *>(store->get_type())->get_element_type())
+                            ->get_element_type())->get_string()!=".list" ) {
+                store = builder->create_load(store);
+            }
         }
         return store;
     }

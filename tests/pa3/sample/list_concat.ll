@@ -1,5 +1,5 @@
 ; ModuleID = 'ChocoPy code'
-source_filename = "../tests/pa3/sample/list_concat.py"
+source_filename = "/Users/yiweiyang/project/bak/chocopy_test/pa3/sample/list_concat.py"
 
 %$union.type = type { i32 }
 
@@ -20,10 +20,10 @@ source_filename = "../tests/pa3/sample/list_concat.py"
   %$object$dispatchTable_type* @$object$dispatchTable
 }
 %$object$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$object$dispatchTable = global %$object$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$int$prototype_type  = type  {
@@ -39,10 +39,10 @@ source_filename = "../tests/pa3/sample/list_concat.py"
   i32 0
 }
 %$int$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$int$dispatchTable = global %$int$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$bool$prototype_type  = type  {
@@ -58,10 +58,10 @@ source_filename = "../tests/pa3/sample/list_concat.py"
   i1 0
 }
 %$bool$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$bool$dispatchTable = global %$bool$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$str$prototype_type  = type  {
@@ -79,10 +79,10 @@ source_filename = "../tests/pa3/sample/list_concat.py"
   i8* inttoptr (i32 0 to i8*)
 }
 %$str$dispatchTable_type = type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)*
+  void(%$object$prototype_type*)*
 }
 @$str$dispatchTable = global %$str$dispatchTable_type {
-  %$object$dispatchTable_type(%$object$dispatchTable_type)* @$object.__init__
+  void(%$object$prototype_type*)* @$object.__init__
 }
 
 %$.list$prototype_type  = type  {
@@ -109,10 +109,10 @@ source_filename = "../tests/pa3/sample/list_concat.py"
 @const_6 = external global %$str$prototype_type
 @const_7 = external global %$str$prototype_type
 @i = global i32 0
-declare %$object$dispatchTable_type @$object.__init__(%$object$dispatchTable_type)
+declare void @$object.__init__(%$object$prototype_type*)
 declare void @heap.init()
-declare %$str$dispatchTable_type* @initchars(i8)
-declare %$int$dispatchTable_type* @noconv()
+declare %$str$prototype_type* @initchars(i8)
+declare %$int$prototype_type* @noconv()
 declare %$.list$prototype_type* @nonlist()
 declare void @error.OOB()
 declare void @error.None()
@@ -125,9 +125,9 @@ declare %$bool$prototype_type* @makebool(i1)
 declare %$int$prototype_type* @makeint(i32)
 declare %$str$prototype_type* @makestr(%$str$prototype_type*)
 declare %$str$prototype_type* @$input()
-declare %$object$dispatchTable_type* @alloc(%$object$dispatchTable_type*)
-declare i1 @streql(%$str$prototype_type*)
-declare i1 @strneql(%$str$prototype_type*)
+declare %$object$prototype_type* @alloc(%$object$prototype_type*)
+declare i1 @streql(%$str$prototype_type*, %$str$prototype_type*)
+declare i1 @strneql(%$str$prototype_type*, %$str$prototype_type*)
 declare %$str$prototype_type* @strcat(%$str$prototype_type*, %$str$prototype_type*)
 @llvm.global_ctors = appending global [1 x { i32, void ()*, i8* }] [{ i32, void ()*, i8* } { i32 65535, void ()* @before_main, i8* null }]
 define void @before_main() {
@@ -170,7 +170,7 @@ label0:
   %op20 = bitcast i32* %op19 to %$union.conslist*
   %op21 = load %$union.conslist, %$union.conslist* %op20
   %op22 = call %$.list$prototype_type* (i32, %$union.conslist, ...) @conslist(i32 3, %$union.conslist %op15, %$union.conslist %op18, %$union.conslist %op21)
-  %op23 = call %$.list$prototype_type* @$concat(%$.list$prototype_type* %op12, %$.list$prototype_type* %op22)
+  %op23 = call %$.list$prototype_type* @$concat_list(%$.list$prototype_type* %op12, %$.list$prototype_type* %op22)
   %op24 = load %$.list$prototype_type, %$.list$prototype_type* %op23
   store %$.list$prototype_type %op24, %$.list$prototype_type* %op2
   br label %label25
@@ -201,7 +201,7 @@ label41:                                                ; preds = %label25
   tail call void asm sideeffect "li a7, 93 #exit system call\0Aecall", ""()
   ret void
 }
-define %$.list$prototype_type* @$concat(%$.list$prototype_type* %arg0, %$.list$prototype_type* %arg1) {
+define %$.list$prototype_type* @$concat_list(%$.list$prototype_type* %arg0, %$.list$prototype_type* %arg1) {
 
 label2:
   %op3 = call %$.list$prototype_type* @concat(%$.list$prototype_type* %arg0, %$.list$prototype_type* %arg1)

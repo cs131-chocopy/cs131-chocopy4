@@ -203,6 +203,12 @@ add s1, zero, zero
 lui s1, 4096
 add sp, sp, s1
 ret
+.globl alloc
+alloc:
+# Runtime support function alloc.
+# Prototype address is in a0.
+lw a1, 4(a0) # Get size of object in words
+j alloc2 # Allocate object with exact size
 .globl alloc2
 alloc2:
 # Runtime support function alloc2 (realloc).
@@ -221,18 +227,21 @@ sw a2, -24(fp)
 sw a1, -28(fp)
 li a2, 4 # Word size in bytes
 mul a2, a1, a2 # Calculate number of bytes to allocate
-add a2, gp, a2 # Estimate where GP will move
-bgeu a2, s11, alloc2_15 # Go to OOM handler if too large
 lw t0, -28(fp) # Get size of object in words
 slli a0, t0, 2
 call sbrk
 lw a1, -4(fp)
-lw t0, 0(a1)
-sw t0, 0(a0)
-lw t0, 1(a1)
-sw t0, 1(a0)
-lw t0, 2(a1)
-sw t0, 2(a0)
+alloc2_16: # Copy-loop header
+lw t1, 0(a1) # Load next word from src
+sw t1, 0(a0) # Store next word to dest
+addi a1, a1, 4 # Increment src
+addi a0, a0, 4 # Increment dest
+addi t0, t0, -1 # Decrement counter
+bne t0, zero, alloc2_16 # Loop if more words left to copy
+alloc2_donw:
+lw t0, -28(fp) # Get size of object in words
+slli a1, t0,2
+sub a0, a0,a1
 lw s1, -8(fp)
 lw a5, -12(fp)
 lw a4, -16(fp)
@@ -248,12 +257,6 @@ li a0, 5 # Exit code for: Out of memory
 la a1, const_5 # Load error message as str
 addi a1, a1, 16 # Load address of attribute __str__
 j abort # Abort
-.globl alloc
-alloc:
-# Runtime support function alloc.
-# Prototype address is in a0.
-lw a1, 4(a0) # Get size of object in words
-j alloc2 # Allocate object with exact size
 .globl concat
 concat:
 # Function concat
@@ -509,6 +512,17 @@ lw ra, -4(fp)
 lw fp, -8(fp)
 addi sp, sp, 32
 jr ra
+.globl print
+print:
+# Function print
+beq a0, zero, print_6 # None is an illegal argument
+lw t0, 0(a0) # Get type tag of arg
+li t1, 1 # Load type tag of `int`
+beq t0, t1, print_7 # Go to print(int)
+li t1, 3 # Load type tag of `str`
+beq t0, t1, print_8 # Go to print(str)
+li t1, 2 # Load type tag of `bool`
+beq t0, t1, print_9 # Go to print(bool)
 .globl print_10
 print_10:
 # Print False object in A0
@@ -568,45 +582,41 @@ lw a0, 12(a0) # Load attribute __bool__
 beq a0, zero, print_10 # Go to: print(False)
 la a0, const_3 # String representation: True
 j print_8 # Go to: print(str)
-.globl print
-print:
-# Function print
-beq a0, zero, print_6 # None is an illegal argument
-lw t0, 0(a0) # Get type tag of arg
-li t1, 1 # Load type tag of `int`
-beq t0, t1, print_7 # Go to print(int)
-li t1, 3 # Load type tag of `str`
-beq t0, t1, print_8 # Go to print(str)
-li t1, 2 # Load type tag of `bool`
-beq t0, t1, print_9 # Go to print(bool)
 .globl strcat
 strcat:
 # Function strcat
-addi sp, sp, -12
+addi sp, sp, -16
 sw ra, 8(sp)
 sw fp, 4(sp)
-sw a0, 4(fp)
-sw a1, 0(fp)
-addi fp, sp, 12
-lw t0, 4(fp)
-lw t1, 0(fp)
-lbu t0, 12(t0)
+sw a0, 12(sp)
+sw a1, 16(sp)
+addi fp, sp, 16
+lw t0, 0(fp)
+lw t1, -4(fp)
+lbu t0, 12(t0) #
 beqz t0, strcat_4
 lw t1, 12(t1)
 beqz t1, strcat_5
 add t1, t0, t1
-sw t1, -12(fp)
+sw t1, -16(fp)
 addi t1, t1, 4
 srli t1, t1, 2
 addi a1, t1, 4
 la a0, $str$prototype
 jal alloc2
-lw t0, -12(fp)
+sw a0, 4(fp)
+lw t0, -16(fp)
 sw t0, 12(a0)
 addi t2, a0, 16
-lw t0, 4(fp)
+lw a0, -16(fp)
+call sbrk
+lw ra, 8(sp)
+sw a0, 0(t2)
+lw t0, -4(fp)
 lbu t1, 12(t0)
 addi t0, t0, 16
+lw t0, 0(t0)
+lw t2, 0(t2)
 strcat_1:
 beqz t1, strcat_2
 lbu t3, 0(t0)
@@ -619,6 +629,7 @@ strcat_2:
 lw t0, 0(fp)
 lw t1, 12(t0)
 addi t0, t0, 16
+lw t0, 0(t0)
 strcat_3:
 beqz t1, strcat_6
 lbu t3, 0(t0)
@@ -628,17 +639,17 @@ addi t0, t0, 1
 addi t2, t2, 1
 j strcat_3
 strcat_4:
-lw a0, 0(fp)
+lw a0, -4(fp)
 j strcat_7
 strcat_5:
-lw a0, 4(fp)
+lw a0, 0(fp)
 j strcat_7
 strcat_6:
-sb zero, 0(t2)
+lw a0, 4(fp)
 strcat_7:
-lw ra, -4(fp)
-lw fp, -8(fp)
-addi sp, sp, 12
+lw ra, -8(fp)
+lw fp, -12(fp)
+addi sp, sp, 16
 jr ra
 .globl streql
 streql:
@@ -647,17 +658,17 @@ addi sp, sp, -8
 sw ra, 4(sp)
 sw fp, 0(sp)
 addi fp, sp, 8
-lw a1, 4(fp)
-lw a2, 0(fp)
-lw t0, 12(a1)
-lw t1, 12(a2)
+lw t0, 12(a0)
+lw t1, 12(a1)
+lw a0, 16(a0)
+lw a1, 16(a1)
 bne t0, t1, streql_no
 streql_1:
-lbu t2, 16(a1)
-lbu t3, 16(a2)
+lbu t2, 0(a0)
+lbu t3, 0(a1)
 bne t2, t3, streql_no
+addi a0, a0, 1
 addi a1, a1, 1
-addi a2, a2, 1
 addi t0, t0, -1
 bgtz t0, streql_1
 li a0, 1
@@ -676,17 +687,17 @@ addi sp, sp, -8
 sw ra, 4(sp)
 sw fp, 0(sp)
 addi fp, sp, 8
-lw a1, 4(fp)
-lw a2, 0(fp)
-lw t0, 12(a1)
-lw t1, 12(a2)
+lw t0, 12(a0)
+lw t1, 12(a1)
+lw a0, 16(a0)
+lw a1, 16(a1)
 bne t0, t1, strneql_yes
 strneql_1:
-lbu t2, 16(a1)
-lbu t3, 16(a2)
+lbu t2, 0(a0)
+lbu t3, 0(a1)
 bne t2, t3, strneql_yes
+addi a0, a0, 1
 addi a1, a1, 1
-addi a2, a2, 1
 addi t0, t0, -1
 bgtz t0, strneql_1
 xor a0, a0, a0

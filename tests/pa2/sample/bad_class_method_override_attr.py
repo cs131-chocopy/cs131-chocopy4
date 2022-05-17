@@ -1,8 +1,6 @@
 class A(object):
-	f:int = 3
-
+    f:int = 3
 class B(A):
-	def f(self:B) -> int:
-		return 3
-
+    def f(self:B) -> int:
+        return 3
 A()

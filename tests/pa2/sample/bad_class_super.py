@@ -1,15 +1,8 @@
-# Super is not defined
-class A(B):
+class A(B): # Super is not defined
     x:int = 1
-
 z:int = 2
-
-# Super is not a class
-class B(z):
+class B(z): # Super is not a class
     x:int = 1
-
-# Cannot extend special classes
-class C(int):
+class C(int): # Cannot extend special classes
     x:int = 1
-
 A()

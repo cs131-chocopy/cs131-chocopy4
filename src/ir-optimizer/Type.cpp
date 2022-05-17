@@ -60,7 +60,7 @@ int Type::get_size() {
 }
 
 constexpr bool Type::is_array_type() {
-    if (this->tid_ == type::LIST)
+    if (this->tid_ == type::LIST && !dynamic_cast<Class *>(this))
         return dynamic_cast<ArrayType *>(this)->get_num_of_elements() != -1;
     else
         return false;

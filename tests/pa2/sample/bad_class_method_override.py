@@ -1,33 +1,20 @@
 class A(object):
     def foo(self:"A", x:int) -> int:
         return x
-
     def bar(self:"A", x:int) -> int:
         return x
-
     def baz(self:"A", x:int) -> int:
         return x
-
     def qux(self:"A", x:int) -> int:
         return x
-
 class B(A):
-
-    # OK override
-    def foo(self:"B", x:int) -> int:
+    def foo(self:"B", x:int) -> int: # OK override
         return 0
-
-    # Bad override
-    def bar(self:"B") -> int:
+    def bar(self:"B") -> int: # Bad override
         return 0
-
-    # Bad override
-    def baz(self:"B", x:int) -> bool:
+    def baz(self:"B", x:int) -> bool: # Bad override
         return True
-
-    # Bad override
-    def qux(self:"B", x:bool) -> int:
+    def qux(self:"B", x:bool) -> int: # Bad override
         return 0
-
 B()
 

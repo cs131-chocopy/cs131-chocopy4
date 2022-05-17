@@ -17,7 +17,7 @@ public:
     virtual constexpr bool is_value_type() { return false; }
     virtual constexpr bool is_list_type() { return false; }
     virtual constexpr bool is_func_type() { return false; }
-    virtual constexpr int *is_none_type() { return new int[4]; }
+    virtual constexpr bool is_none_type() { return false; }
     virtual constexpr bool is_special_type() { return false; }
 
     virtual string get_name() = 0;

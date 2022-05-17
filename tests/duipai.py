@@ -319,7 +319,7 @@ def check_once(pa_index: int):
     success_count: list = [0, 0, 0]
     test_results: list = []
 
-    pa_roots: List[str] = [ '/sample']
+    pa_roots: List[str] = ['/fuzz', '/student', '/sample']
     for i, pa_root in enumerate(pa_roots):
         try:
             pa_root = os.path.join(pas + f'pa{pa_index}' + pa_root)
@@ -365,7 +365,7 @@ def check_once(pa_index: int):
                               reference_output_path_out]))
                 reference_output = readfile(reference_output_path_out).strip()
             else:
-                reference_output = readfile(reference_output_path).strip().replace(" ", "").replace("\n\n", "\n").encode("utf-8")
+                reference_output = readfile(reference_output_path).replace(" ", "").replace("\r","").replace("\n\n", "\n").strip()
 
             program_path: str = {
                 1: '../cmake-build-debug-kali-gcc/parser',
@@ -379,10 +379,11 @@ def check_once(pa_index: int):
             if case == "input.py":
                 cmd = program_path.split(" ") + [os.path.join(pa_root, case)] + ["|", "cat",
                                                                                  "../tests/pa3/sample/input.py.in"]
+                print(" ".join(cmd))
                 result = pexpect.spawn('/bin/bash -c "' + " ".join(cmd) + '"')
                 time.sleep(1)
                 result.sendcontrol('d')
-                program_output = result.read().decode("utf-8").replace(" ", "").replace("\r","").strip()
+                program_output = result.read().decode("utf-8").replace(" ", "").replace("\r","").replace("\n\n","\n").strip()
             else:
                 if pa == 2:
                     program_output_path_tmp = reference_output_path + ".out.tmp"
@@ -395,7 +396,7 @@ def check_once(pa_index: int):
                     writefile(program_output_path_tmp,
                               json.dumps(program_output_tmp, indent=4, sort_keys=True))
                     os.system(
-                        " ".join(["../build/cjson_formatter", program_output_path_tmp, ">", program_output_path_bak]))
+                        " ".join(["../cmake-build-debug-kali-gcc/cjson_formatter", program_output_path_tmp, ">", program_output_path_bak]))
                     program_output = readfile(program_output_path_bak).strip().replace("\n\n", "\n")
                 else:
                     print(" ".join(program_path.split(
@@ -403,7 +404,7 @@ def check_once(pa_index: int):
                     program_output = subprocess.run(
                         program_path.split(
                             " ") + [os.path.join(pa_root, case)],
-                        capture_output=True).stdout.decode('utf-8').replace(" ", "").replace("bblloader", "").strip()
+                        capture_output=True).stdout.decode('utf-8').replace(" ", "").replace("bblloader", "").strip().replace("\n\n", "\n").replace("\x03","")
 
             checker: Callable[[str, str], bool] = {
                 1: lambda std, out: check_stage(std, out),
@@ -494,42 +495,3 @@ if __name__ == '__main__':
     score = check_once(pa)
     # print(res)
     print(f'The final score is {score}')
-
-    if pa == 2 or pa == 3 or pa == 4:
-        with open("../README.md", "r") as f:
-            s = f.read()
-            res = re.findall(": .+@shanghaitech.edu.cn", s)
-            res = [i[2:-20] for i in res]
-        for user in res:
-            print(user, score)
-            db = pymysql.connect(host="10.15.89.112",
-                                 user="root", passwd="victor129", port=3306)
-            cursor = db.cursor()
-            cursor.execute("use COMPILER;")
-            cursor.execute("update S3L_GRADE_SCORE set score" + str(pa) +
-                           "=" + str(score) + " where username=\"" + user + "_choco" + "\";")
-            result = cursor.fetchall()
-            db.commit()
-            db.close()
-    else:
-        res = subprocess.check_output("git remote -v", shell=True)
-        username = re.search(r"1/.+/", res.decode("utf-8"))[0][2:-1]
-        print(username)
-        db = pymysql.connect(host="10.15.89.112", user="root",
-                             passwd="victor129", port=3306)
-        cursor = db.cursor()
-
-        try:
-            cursor.execute("use COMPILER;")
-            cursor.execute("""INSERT INTO S3L_GRADE_SCORE
-                     VALUES (""" + str(score) + ",0,0,0,\"" + username + "_choco" + "\");")
-            result = cursor.fetchall()
-            db.commit()
-        except:
-            cursor.execute("update S3L_GRADE_SCORE set score" + str(pa) +
-                           "=" + str(score) + " where username=\"" + username + "_choco" + "\";")
-            print("update S3L_GRADE_SCORE set score" + str(pa) +
-                  "=" + str(score) + " where username=\"" + username + "_choco" + "\";")
-            result = cursor.fetchall()
-            db.commit()
-        db.close()
