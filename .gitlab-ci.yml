@@ -1,0 +1,24 @@
+stages:
+    - build
+    - grade-pa4
+
+build-job:
+    stage: build
+    tags:
+        - pa
+    script:
+        - mkdir build
+        - cd build
+        - cmake .. -G "Ninja"
+        - ninja cgen
+    artifacts: 
+        paths:
+            - build
+
+grade-pa1-job:
+    stage: grade-pa4
+    tags:
+        - linux
+    script:
+        - cd tests
+        - python3 /root/chocopy_test/duipai.py --pa 4

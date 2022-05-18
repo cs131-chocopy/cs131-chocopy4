@@ -1,16 +1,10 @@
-# ChocoPy
-student1: yangyw@shanghaitech.edu.cn
-student2: yangyw@shanghaitech.edu.cn
-The C++ version of the project
+# ChocoPy PA4
 
-## PA1
-compile the front end code to ast tree.
+student1: xxx@shanghaitech.edu.cn
+student2: xxx@shanghaitech.edu.cn
 
-## PA2
-type checking.
+Compile the LightIR code to RiscV Assembly. [Start from using docker](./doc/common/build.md) and see the [doc](./doc/PA4/README.md).
 
-## PA3
-compile the ast tree to the LLVM IR.
+## writeup
 
-## PA4
-emit riscv assembly.
+xxx
