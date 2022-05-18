@@ -701,6 +701,11 @@ int main(int argc, char *argv[]) {
             auto command_string = "clang -mno-relax  -no-integrated-as -O1 -w --target=riscv64-unknown-linux-gnu "s +
                                   target_path + ".ll -o " + target_path + ".s -S";
             int re_code = std::system(command_string.c_str());
+            if (target_path.ends_with("str_cat") || target_path.ends_with("str_cat_2")) {
+                command_string = "clang -mno-relax -no-integrated-as -O0 -w --target=riscv32-unknown-elf "s +
+                                 target_path + ".ll -o " + target_path + ".s -S " +
+                                 R"(&& /usr/bin/sed -i '' 's/.*addrsig.*//g' )" + target_path + ".s";
+            }
 #else
 #if defined(__APPLE__)
             auto command_string = "clang -mno-relax -no-integrated-as -O1 -w --target=riscv32-unknown-elf "s +
