@@ -21,4 +21,4 @@ grade-pa1-job:
         - linux
     script:
         - cd tests
-        - python3 /root/chocopy_test/duipai.py --pa 4
+        - PATH=$PATH:/llvm/bin python3 /root/chocopy_test/duipai.py --pa 4
