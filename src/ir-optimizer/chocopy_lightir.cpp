@@ -149,10 +149,10 @@ Type *LightWalker::string_to_type(const string &type_name) {
         if (res_num <= 3)
             return OBJ_T->at(res_num);
         else {
-            if (res_num<OBJ_T->size()) {
+            if (res_num < OBJ_T->size()) {
                 return ArrayType::get(OBJ_T->at(res_num));
-            }else {
-                return ArrayType::get(OBJ_T->at(res_num-1));
+            } else {
+                return ArrayType::get(OBJ_T->at(res_num - 1));
             }
         }
     } else

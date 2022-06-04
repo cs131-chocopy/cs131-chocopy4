@@ -21,7 +21,6 @@
 const std::regex to_class_replace("\\$(.+?)+__init__\\.");
 
 void print_help(const string_view &exe_name);
-void print_help_all(const string_view &exe_name);
 
 namespace semantic {
 class SymbolTable;
