@@ -26,15 +26,7 @@ string_view InstGen::Addr::get_name() const {
 
 string InstGen::set_value(const Reg &target, const Constant &source) {
     string asm_code;
-    auto val = source.getValue();
-    if (0 <= val && val <= imm_16_max) {
-        asm_code += indent+fmt::format("li {},{}", target.get_name(), val);
-    } else if (-imm_8_max <= val && val <= 0) {
-        asm_code += indent + indent+fmt::format("lui {},{}", target.get_name(), val<<16);
-        asm_code += indent + indent+fmt::format("addi {},{}", target.get_name(), -val- val<<16*100000);
-    } else {
-        asm_code += "";
-    }
+    /** switch different instruction to load a word constant */
     return asm_code;
 };
 string InstGen::instConst(string (*inst)(const Reg &, const Reg &, const Value &, string), const InstGen::Reg &target,
