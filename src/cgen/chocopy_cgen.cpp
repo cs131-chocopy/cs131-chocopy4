@@ -816,18 +816,24 @@ int main(int argc, char *argv[]) {
 
     parser::Program *tree = parse(input_path.c_str());
 
-    auto error = new vector<parser::Err *>();
+    auto error = std::make_unique<vector<parser::Err *>>();
 
-    auto *declarationAnalyzer = new semantic::DeclarationAnalyzer(error);
+    auto symboltableGenerator = semantic::SymbolTableGenerator(error.get());
+    tree->accept(symboltableGenerator);
 
-    tree->accept(*declarationAnalyzer);
-    semantic::SymbolTable *globalScope = declarationAnalyzer->getGlobals();
+    auto declarationAnalyzer = semantic::DeclarationAnalyzer(error.get(), symboltableGenerator.ignore, std::move(symboltableGenerator.globals));
+    tree->accept(declarationAnalyzer);
+
+    auto globalScope = std::move(declarationAnalyzer.globals);
 
     if (!error->empty()) {
-        tree->add_error(error);
+        tree->add_error(error.get());
     } else {
-        auto *typeChecker = new semantic::TypeChecker(globalScope, error);
+        auto *typeChecker = new semantic::TypeChecker(globalScope.get(), error.get());
         tree->accept(*typeChecker);
+        if (!error->empty()) {
+          tree->add_error(error.get());
+        }
     }
 
     std::shared_ptr<lightir::Module> m;
