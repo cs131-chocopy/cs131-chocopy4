@@ -25,6 +25,28 @@ class ClassValueType;
 class ListValueType;
 
 /**
+ * @brief A tempelate class for nonlocal and global. Will be replaced after DeclarationAnalyzer.
+ */
+class RefType : public SymbolType {
+    public:
+        RefType(const string& name) : name(name) {}
+
+        const string get_name() const override { return name; }
+        void set_name(string_view className) override { name = className; }
+        string get_type() const override { return ""; };
+
+        string name;
+};
+class NonlocalRefType : public RefType {
+    public:
+        NonlocalRefType(const string& name) : RefType(name) {}
+};
+class GlobalRefType : public RefType {
+    public:
+        GlobalRefType(const string& name) : RefType(name) {}
+};
+
+/**
  * A ValueType references types that are assigned to variables and
  * expressions.
  *
@@ -35,11 +57,11 @@ class ValueType : public SymbolType {
 public:
     ValueType() = default;
 
-    bool is_value_type() override { return true; }
+    bool is_value_type() const override { return true; }
 
     static ValueType *annotate_to_val(parser::TypeAnnotation *annotation);
 
-    string get_name() override;
+    const string get_name() const override;
 };
 
 /**
@@ -52,9 +74,9 @@ public:
 
     explicit ListValueType(parser::ListType *typeAnnotation);
 
-    bool constexpr is_list_type() override { return true; }
+    bool constexpr is_list_type() const override { return true; }
 
-    string get_name() override { return "[" + this->element_type->get_name() + "]"; }
+    const string get_name() const override { return "[" + this->element_type->get_name() + "]"; }
 
     void set_name(string_view className) override {}
 
@@ -78,11 +100,11 @@ public:
 
     ClassValueType() = default;
 
-    bool is_special_type() override {
+    bool is_special_type() const override {
         return this->class_name != "str" && this->class_name != "int" && this->class_name != "list" &&
                this->class_name != "bool";
     };
-    string get_name() override { return class_name; }
+    const string get_name() const override { return class_name; }
 
     void set_name(string_view className) override { this->class_name = className; }
 

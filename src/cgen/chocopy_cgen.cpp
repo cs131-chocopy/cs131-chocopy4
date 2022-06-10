@@ -1,3 +1,4 @@
+#include "Module.hpp"
 #include <chocopy_cgen.hpp>
 #include <chocopy_lightir.hpp>
 #if __cplusplus > 202000L && !defined(__clang__)
@@ -221,36 +222,36 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
     std::string asm_code;
     auto &ops = inst->get_operands();
     switch (inst->get_instr_type()) {
-        case OpID::Ret:
-        case OpID::Br:
-        case OpID::Neg:
-        case OpID::Not:
-        case OpID::Add:
-        case OpID::Sub:
-        case OpID::Mul:
-        case OpID::Div:
-        case OpID::Rem:
-        case OpID::And:
-        case OpID::Or:
-        case OpID::Alloca:
-        case OpID::Load:
-        case OpID::Store:
-        case OpID::Shl:
-        case OpID::AShr:
-        case OpID::LShr:
-        case OpID::ICmp:
-        case OpID::PHI:
-        case OpID::Call:
-        case OpID::GEP:
-        case OpID::ZExt:
-        case OpID::InElem:
-        case OpID::ExElem:
-        case OpID::BitCast:
-        case OpID::Trunc:
-        case OpID::VExt:
-        case OpID::ASM:
-        case OpID::ACCSTART:
-        case OpID::ACCEND:
+        case lightir::Instruction::Ret:
+        case lightir::Instruction::Br:
+        case lightir::Instruction::Neg:
+        case lightir::Instruction::Not:
+        case lightir::Instruction::Add:
+        case lightir::Instruction::Sub:
+        case lightir::Instruction::Mul:
+        case lightir::Instruction::Div:
+        case lightir::Instruction::Rem:
+        case lightir::Instruction::And:
+        case lightir::Instruction::Or:
+        case lightir::Instruction::Alloca:
+        case lightir::Instruction::Load:
+        case lightir::Instruction::Store:
+        case lightir::Instruction::Shl:
+        case lightir::Instruction::AShr:
+        case lightir::Instruction::LShr:
+        case lightir::Instruction::ICmp:
+        case lightir::Instruction::PHI:
+        case lightir::Instruction::Call:
+        case lightir::Instruction::GEP:
+        case lightir::Instruction::ZExt:
+        case lightir::Instruction::InElem:
+        case lightir::Instruction::ExElem:
+        case lightir::Instruction::BitCast:
+        case lightir::Instruction::Trunc:
+        case lightir::Instruction::VExt:
+        case lightir::Instruction::ASM:
+        case lightir::Instruction::ACCSTART:
+        case lightir::Instruction::ACCEND:;
     }
     return asm_code;
 }
@@ -514,7 +515,7 @@ string CodeGen::generateVext(int vlen, int elen, lightir::VExtInst::vv_type type
     case VExtInst::VDIV:
     case VExtInst::VREM:
     case VExtInst::VMUL:
-    case VExtInst::VSE:
+    case VExtInst::VSE:;
     }
     return asm_code;
 };
@@ -647,29 +648,35 @@ int main(int argc, char *argv[]) {
 
     parser::Program *tree = parse(input_path.c_str());
 
-    auto error = new vector<parser::Err *>();
+    auto error = std::make_unique<vector<parser::Err *>>();
 
-    auto *declarationAnalyzer = new semantic::DeclarationAnalyzer(error);
+    auto symboltableGenerator = semantic::SymbolTableGenerator(error.get());
+    tree->accept(symboltableGenerator);
 
-    tree->accept(*declarationAnalyzer);
-    semantic::SymbolTable *globalScope = declarationAnalyzer->getGlobals();
+    auto declarationAnalyzer = semantic::DeclarationAnalyzer(error.get(), symboltableGenerator.ignore, std::move(symboltableGenerator.globals));
+    tree->accept(declarationAnalyzer);
+
+    auto globalScope = std::move(declarationAnalyzer.globals);
 
     if (!error->empty()) {
-        tree->add_error(error);
+        tree->add_error(error.get());
     } else {
-        auto *typeChecker = new semantic::TypeChecker(globalScope, error);
+        auto *typeChecker = new semantic::TypeChecker(globalScope.get(), error.get());
         tree->accept(*typeChecker);
+        if (!error->empty()) {
+          tree->add_error(error.get());
+        }
     }
 
     std::shared_ptr<lightir::Module> m;
     if (!error->empty()) {
-        tree->add_error(error);
+        tree->add_error(error.get());
     } else {
         cJSON *a = tree->toJSON();
         char *out = cJSON_Print(a);
         LOG(INFO) << "ChocoPy Language Server:\n" << out << "\n";
 
-        auto *LightWalker = new lightir::LightWalker(globalScope);
+        auto *LightWalker = new lightir::LightWalker(globalScope.get());
         tree->accept(*LightWalker);
         m = LightWalker->get_module();
         m->source_file_name_ = input_path;

@@ -6,6 +6,8 @@
 #define CHOCOPY_COMPILER_IRBUILDER_HPP
 
 #include "BasicBlock.hpp"
+#include "Constant.hpp"
+#include "Module.hpp"
 #include "Value.hpp"
 #include <utility>
 
@@ -30,6 +32,7 @@ public:
     BinaryInst *create_ior(Value *lhs, Value *rhs) { return BinaryInst::create_or(lhs, rhs, this->BB_, m_); }
     UnaryInst *create_inot(Value *lhs) { return UnaryInst::create_not(lhs, this->BB_, m_); }
     UnaryInst *create_ineg(Value *lhs) { return UnaryInst::create_neg(lhs, this->BB_, m_); }
+    BinaryInst *create_not(Value *lhs) {return new BinaryInst(Type::get_int32_type(m_),Instruction::Sub,ConstantInt::get(true,m_), lhs, this->BB_);}
     PhiInst *create_phi(Type *lhs) { return PhiInst::create_phi(lhs, this->BB_); }
 
     CmpInst *create_icmp_eq(Value *lhs, Value *rhs) {
@@ -71,7 +74,13 @@ public:
     StoreInst *create_store(Value *val, Value *ptr) { return StoreInst::create_store(val, ptr, this->BB_); }
     LoadInst *create_load(Type *ty, Value *ptr) { return LoadInst::create_load(ty, ptr, this->BB_); }
     LoadInst *create_load(Value *ptr1, Value *ptr2) { return LoadInst::create_load(ptr1, ptr2, this->BB_); }
-    LoadInst *create_load(Value *ptr) { return LoadInst::create_load(ptr->get_type(), ptr, this->BB_); }
+    LoadInst *create_load(Value *ptr) {
+        if (dynamic_cast<GlobalVariable*>(ptr)) {
+            return LoadInst::create_load(ptr->get_type(), ptr, this->BB_);
+        } else {
+            return LoadInst::create_load(ptr->get_type()->get_ptr_element_type(), ptr, this->BB_);
+        }
+    }
 
     AllocaInst *create_alloca(Type *ty) { return AllocaInst::create_alloca(ty, this->BB_); }
     ZextInst *create_zext(Value *val, Type *ty) { return ZextInst::create_zext(val, ty, this->BB_); }

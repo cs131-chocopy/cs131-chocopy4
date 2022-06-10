@@ -2,3 +2,4 @@ cmake-*
 chocopy_test
 build*
 .VSCode
+.cache

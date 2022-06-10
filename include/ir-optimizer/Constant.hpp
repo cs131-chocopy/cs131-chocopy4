@@ -54,6 +54,14 @@ public:
     string print() override;
 };
 
+class ConstantNull : public Constant {
+public:
+    ConstantNull(Type *ty) : Constant(ty, "", 0) {}
+    static ConstantNull *get(Type *ty) { return new ConstantNull(ty); };
+
+    string print() override;
+};
+
 class ConstantArray : public Constant {
 private:
     ConstantArray(ArrayType *ty, const vector<Constant *> &val);

@@ -210,7 +210,6 @@ public:
 
     cJSON *toJSON() override;
     void accept(ast::Visitor &visitor) override;
-    semantic::SymbolType *inferredType{};
 };
 
 class Stmt : public Node {
@@ -322,14 +321,6 @@ public:
         this->value = value;
     }
 
-    AssignStmt(int *location, vector<Expr *> *target, AssignStmt *assign_stmt) : Stmt(location, "AssignStmt") {
-        this->targets = target;
-        for (auto &&item : *assign_stmt->targets) {
-            this->targets->emplace_back(item);
-        }
-        this->value = assign_stmt->value;
-    }
-
     int *get_location() override { return this->location; }
 
     cJSON *toJSON() override;
@@ -433,7 +424,7 @@ public:
     CallExpr(int *location, Ident *function, vector<Expr *> *args) : Expr(location, "CallExpr") {
         this->function = function;
         this->args = args;
-        this->has_args = true;
+        this->has_args = args->size() > 0;
     }
 
     CallExpr(int *location, Ident *function) : Expr(location, "CallExpr") {
@@ -726,7 +717,7 @@ public:
      */
     ListExpr(int *location, vector<Expr *> *elements) : Expr(location, "ListExpr") {
         this->elements = elements;
-        this->has_expr = true;
+        this->has_expr = elements->size() > 0;
     }
     explicit ListExpr(int *location) : Expr(location, "ListExpr") { this->has_expr = false; }
 
@@ -774,6 +765,8 @@ public:
     void accept(ast::Visitor &visitor) override;
 
     Ident *get_id() { return (Ident *)object; }
+
+    bool is_function_call = false;
 };
 
 /** Method calls. */
@@ -792,7 +785,7 @@ public:
         this->location = location;
         this->args = args;
         this->method = method;
-        this->has_args = true;
+        this->has_args = args->size() > 0;
     }
     /** The initializer for unintialised args*/
     MethodCallExpr(int *location, MemberExpr *method) : Expr(location, "MethodCallExpr") {
@@ -959,8 +952,6 @@ public:
     TypedVar *var;
     /** The initial value assigned. */
     Literal *value;
-    /** The list is not used in function passing or class passing */
-    bool is_conslist = false;
 
     /** The AST for
      *      VAR = VALUE
@@ -1008,9 +999,8 @@ public:
      *      PASS
      *  spanning source locations [LEFT..RIGHT].
      */
-    explicit PassStmt(int *location) : Stmt(location, "PassStmt"), Decl(location, "PassStmt") {}
+    explicit PassStmt(int *location) : Stmt(location, "PassStmt"), Decl(location,"PassStmt") {}
     void accept(ast::Visitor &visitor) override;
-    cJSON *toJSON() override;
 };
 
 /** Var assignment expr. */
@@ -1072,7 +1062,6 @@ class VarAssignStmt : public Stmt {
 public:
     Ident *var;
     Expr *value;
-    bool is_len_list = false;
 
     VarAssignStmt(int *location, Ident *var, Expr *value) : Stmt(location, "VarAssignStmt") {
         this->var = var;
@@ -1110,7 +1099,7 @@ public:
     IndexExpr *listElement;
     Expr *value;
 
-    IndexAssignStmt(int *location, IndexExpr *listElement, Expr *value) : Stmt(location, "IndexAssignStmt") {
+    IndexAssignStmt(int *location, IndexExpr *listElement, Expr *value) : Stmt(location, "AssignStmt") {
         this->listElement = listElement;
         this->value = value;
     }

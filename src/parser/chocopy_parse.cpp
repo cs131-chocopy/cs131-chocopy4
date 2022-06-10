@@ -4,10 +4,6 @@
 
 #include <chocopy_parse.hpp>
 #include <cjson/cJSON.h>
-#include <regex>
-
-const std::regex to_replace(".+:");
-extern int yydebug;
 
 namespace parser {
 cJSON *add_inferred_type(semantic::SymbolType *class_) {
@@ -46,23 +42,22 @@ cJSON *Node::toJSON() {
     loc = cJSON_CreateIntArray(this->get_location(), 4);
 
     /* Create the output json */
-#ifdef PA1
+#if PA1
     if (this->kind != "PassStmt" && !this->kind.ends_with("AssignStmt"))
         cJSON_AddStringToObject(d, "kind", this->kind.c_str());
     else if (this->kind.ends_with("AssignStmt"))
         cJSON_AddStringToObject(d, "kind", "AssignStmt");
 #else
-    cJSON_AddStringToObject(d, "kind", this->kind.c_str());
+    if (this->kind != "PassStmt")
+        cJSON_AddStringToObject(d, "kind", this->kind.c_str());
 #endif
-#ifdef PA1
+#if PA1
     cJSON_AddItemToObject(d, "location", loc);
 #else
-    if (dynamic_cast<Ident *>(this) || dynamic_cast<TypedVar *>(this) || dynamic_cast<Literal *>(this) ||
-        dynamic_cast<TypeAnnotation *>(this) || dynamic_cast<Decl *>(this) || dynamic_cast<Stmt *>(this) ||
-        dynamic_cast<Expr *>(this) || dynamic_cast<Program *>(this))
+    if (dynamic_cast<Ident *>(this) || dynamic_cast<TypedVar *>(this) || dynamic_cast<TypeAnnotation *>(this))
         cJSON_AddItemToObject(d, "location", loc);
 #endif
-    if (((Err *)this)->top_level)
+    if (dynamic_cast<Err*>(this) && ((Err *)this)->top_level)
         if (this->has_err())
             cJSON_AddStringToObject(d, "error_msg", this->error_msg.c_str());
 
@@ -128,11 +123,7 @@ cJSON *TypedVar::toJSON() {
     cJSON_AddItemToObject(d, "identifier", this->identifier->toJSON());
 
     /* d["type"] = self.type.toJSON() */
-#ifdef PA1
     cJSON_AddItemToObject(d, "type", this->type->toJSON());
-#else
-    cJSON_AddItemToObject(d, "inferredType", this->type->toJSON());
-#endif
 
     return d;
 }
@@ -181,18 +172,11 @@ cJSON *AssignStmt::toJSON() {
     cJSON *d = Stmt::toJSON();
 
     /* d["targets"] = [t.toJSON() for t in self.targets] */
-#ifdef PA1
     cJSON *target_stmt = cJSON_CreateArray();
     cJSON_AddItemToObject(d, "targets", target_stmt);
     for (auto &target : *this->targets) {
         cJSON_AddItemToArray(target_stmt, target->toJSON());
     }
-#else
-    for (auto &target : *this->targets) {
-        cJSON_AddItemToObject(d, "targets", target->toJSON());
-    }
-#endif
-
     /* d["value"] = self.value.toJSON() */
     cJSON_AddItemToObject(d, "value", this->value->toJSON());
 
@@ -206,12 +190,12 @@ cJSON *BinaryExpr::toJSON() {
     if (this->left != nullptr)
         cJSON_AddItemToObject(d, "left", this->left->toJSON());
 
-    /* d["operator"] = self.operator */
-    cJSON_AddStringToObject(d, "operator", this->operator_.c_str());
-
     /* d["right"] = self.right.toJSON() */
     if (this->right != nullptr)
         cJSON_AddItemToObject(d, "right", this->right->toJSON());
+
+    /* d["operator"] = self.operator */
+    cJSON_AddStringToObject(d, "operator", this->operator_.c_str());
     return d;
 }
 
@@ -247,18 +231,9 @@ cJSON *ClassDef::toJSON() {
     cJSON *decls = cJSON_CreateArray();
     cJSON_AddItemToObject(d, "declarations", decls);
     for (auto &i : *this->declaration) {
-        if (!dynamic_cast<PassStmt *>(i))
-            cJSON_AddItemToArray(decls, i->toJSON());
+        cJSON_AddItemToArray(decls, i->toJSON());
     }
 
-    return d;
-}
-
-cJSON *PassStmt::toJSON() {
-    auto d = cJSON_CreateObject();
-    cJSON *loc = cJSON_CreateIntArray((dynamic_cast<Stmt *>(this))->location, 4);
-    cJSON_AddItemToObject(d, "location", loc);
-    cJSON_AddStringToObject(d, "kind", "PassStmt");
     return d;
 }
 
@@ -341,17 +316,10 @@ cJSON *FuncDef::toJSON() {
         auto none_return = cJSON_CreateObject();
         cJSON_AddItemToObject(none_return, "kind", cJSON_CreateString("ClassType"));
         int *i = new int[4]{0};
-        if (params) {
-            i[2] = this->name->location[2];
-            i[1] = this->name->location[2];
-            i[0] = this->name->location[3] + 4;
-            i[3] = this->name->location[3] + 4;
-        } else {
-            i[0] = this->params->at(this->params->size() - 1)->location[2];
-            i[2] = this->params->at(this->params->size() - 1)->location[2];
-            i[1] = this->params->at(this->params->size() - 1)->location[2] + 2;
-            i[3] = this->params->at(this->params->size() - 1)->location[2] + 2;
-        }
+        i[0] = this->location[2];
+        i[2] = this->location[2];
+        i[1] = this->location[3];
+        i[3] = this->location[3];
         cJSON_AddItemToObject(none_return, "location", cJSON_CreateIntArray(i, 4));
         cJSON_AddItemToObject(none_return, "className", cJSON_CreateString("<None>"));
 
@@ -388,11 +356,7 @@ cJSON *FuncDef::toJSON() {
             else if (statement->kind == "AssignStmt")
                 cJSON_AddItemToArray(stmt_, ((AssignStmt *)statement)->toJSON());
             else if (statement->kind == "PassStmt")
-#ifdef PA1
                 continue;
-#else
-                cJSON_AddItemToArray(stmt_, ((PassStmt *)statement)->toJSON());
-#endif
             else
                 cJSON_AddItemToArray(stmt_, statement->toJSON());
         }
@@ -417,7 +381,7 @@ cJSON *IfStmt::toJSON() {
         cJSON_AddItemToObject(d, "condition", this->condition->toJSON());
     cJSON *then_body = cJSON_CreateArray();
     cJSON_AddItemToObject(d, "thenBody", then_body);
-    for (auto &i : *this->thenBody) {
+     for (auto &i : *this->thenBody) {
         if (i->kind == "ExprStmt")
             cJSON_AddItemToArray(then_body, ((ExprStmt *)i)->toJSON());
         else if (i->kind == "IndexAssignStmt")
@@ -436,19 +400,14 @@ cJSON *IfStmt::toJSON() {
             cJSON_AddItemToArray(then_body, ((ForStmt *)i)->toJSON());
         else if (i->kind == "AssignStmt")
             cJSON_AddItemToArray(then_body, ((AssignStmt *)i)->toJSON());
-        else if (i->kind == "PassStmt")
-#ifdef PA1
-            continue;
-#else
-            cJSON_AddItemToArray(then_body, ((PassStmt *)i)->toJSON());
-#endif
         else
             cJSON_AddItemToArray(then_body, i->toJSON());
     }
+
     /* d["elseBody"] = [s.toJSON() for s in self.elseBody] */
-    cJSON *else_body = cJSON_CreateArray();
-    cJSON_AddItemToObject(d, "elseBody", else_body);
     if (this->el == cond::THEN_ELSE) {
+        cJSON *else_body = cJSON_CreateArray();
+        cJSON_AddItemToObject(d, "elseBody", else_body);
         for (auto &i : *this->elseBody) {
             if (i->kind == "ExprStmt")
                 cJSON_AddItemToArray(else_body, ((ExprStmt *)i)->toJSON());
@@ -468,16 +427,12 @@ cJSON *IfStmt::toJSON() {
                 cJSON_AddItemToArray(else_body, ((ForStmt *)i)->toJSON());
             else if (i->kind == "AssignStmt")
                 cJSON_AddItemToArray(else_body, ((AssignStmt *)i)->toJSON());
-            else if (i->kind == "PassStmt")
-#ifdef PA1
-                continue;
-#else
-                cJSON_AddItemToArray(else_body, ((PassStmt *)i)->toJSON());
-#endif
             else
                 cJSON_AddItemToArray(else_body, i->toJSON());
         }
     } else if (this->el == cond::THEN_ELIF) {
+        cJSON *else_body = cJSON_CreateArray();
+        cJSON_AddItemToObject(d, "elseBody", else_body);
         cJSON_AddItemToArray(else_body, this->elifBody->toJSON());
     }
 
@@ -593,6 +548,7 @@ cJSON *Program::toJSON() {
 
     /* d['statements'] = [s.toJSON() for s in self.statements] */
     cJSON *stmt_ = cJSON_CreateArray();
+    cJSON_AddItemToObject(d, "statements", stmt_);
     if (!this->statements->empty())
         for (auto &statement : *this->statements) {
             if (statement->kind == "ExprStmt")
@@ -613,16 +569,9 @@ cJSON *Program::toJSON() {
                 cJSON_AddItemToArray(stmt_, ((ReturnStmt *)statement)->toJSON());
             else if (statement->kind == "AssignStmt")
                 cJSON_AddItemToArray(stmt_, ((AssignStmt *)statement)->toJSON());
-            else if (statement->kind == "PassStmt")
-#ifdef PA1
-                continue;
-#else
-                cJSON_AddItemToArray(stmt_, ((PassStmt *)statement)->toJSON());
-#endif
             else
                 cJSON_AddItemToArray(stmt_, statement->toJSON());
         }
-    cJSON_AddItemToObject(d, "statements", stmt_);
 
     if (this->has_compiler_errors) {
         for (auto tmp_compiler : *this->errors->compiler_errors) {
@@ -637,12 +586,10 @@ cJSON *Program::toJSON() {
         cJSON *errors1 = cJSON_CreateArray();
         cJSON_AddItemToObject(err, "errors", errors1);
         cJSON_AddItemToArray(errors1, this->errors->toJSON());
-        cJSON_AddStringToObject(err, "kind", "SemanticErrors");
+        cJSON_AddStringToObject(err, "kind", "Errors");
         int *i = new int[4]{0};
         cJSON_AddItemToObject(err, "locations", cJSON_CreateIntArray(i, 4));
-    }
-#ifdef PA1
-    else {
+    } else {
         cJSON *err = cJSON_CreateObject();
         cJSON_AddItemToObject(d, "errors", err);
         cJSON *errors1 = cJSON_CreateArray();
@@ -651,7 +598,7 @@ cJSON *Program::toJSON() {
         int *i = new int[4]{0};
         cJSON_AddItemToObject(err, "location", cJSON_CreateIntArray(i, 4));
     }
-#endif
+
     return d;
 }
 
@@ -670,7 +617,7 @@ cJSON *UnaryExpr::toJSON() {
     cJSON *d = Expr::toJSON();
 
     /* d["operator"] = self.operator */
-    cJSON_AddStringToObject(d, "operator", std::regex_replace(this->operator_, to_replace, "").c_str());
+    cJSON_AddStringToObject(d, "operator", this->operator_.c_str());
 
     /* d["operand"] = self.operand.toJSON() */
     cJSON_AddItemToObject(d, "operand", this->operand->toJSON());
@@ -698,21 +645,21 @@ cJSON *WhileStmt::toJSON() {
 
     /* d["body"] = [s.toJSON() for s in self.body] */
     auto while_stmt = cJSON_CreateArray();
-    for (auto &&i : *this->body)
+    cJSON_AddItemToObject(d, "body", while_stmt);
+    for (auto &&i : *this->body) {
         if (i->kind != "PassStmt")
             cJSON_AddItemToArray(while_stmt, i->toJSON());
-
-    cJSON_AddItemToObject(d, "body", while_stmt);
+    }
     return d;
 }
 
 cJSON *VarAssignStmt::toJSON() {
     cJSON *d = Stmt::toJSON();
-#ifdef PA1
+#if PA1
     cJSON *target_stmt = cJSON_CreateArray();
     cJSON_AddItemToObject(d, "targets", target_stmt);
 
-    cJSON_AddItemToArray(target_stmt, this->var->toJSON());
+    cJSON_AddItemToObject(target_stmt, "var", this->var->toJSON());
 #else
     cJSON_AddItemToObject(d, "var", this->var->toJSON());
 #endif
@@ -724,9 +671,9 @@ cJSON *VarAssignStmt::toJSON() {
     auto next_kind = this->value;
 
     while (next_kind->kind == "VarAssignExpr") {
-#ifdef PA1
+#if PA1
         cJSON_AddItemToArray(target_stmt, ((VarAssignExpr *)next_kind)->var->toJSON());
-#else
+#elif PA2
         cJSON_AddItemToArray(d, ((VarAssignExpr *)next_kind)->var->toJSON());
 #endif
         next_kind = ((VarAssignExpr *)next_kind)->value;
@@ -741,13 +688,9 @@ cJSON *VarAssignStmt::toJSON() {
 
 cJSON *MemberAssignStmt::toJSON() {
     cJSON *d = Stmt::toJSON();
-#ifdef PA1
-    cJSON *target_stmt = cJSON_CreateArray();
-    cJSON_AddItemToObject(d, "targets", target_stmt);
-    cJSON_AddItemToArray(target_stmt, this->objectMember->toJSON());
-#else
-    cJSON_AddItemToObject(d, "objectMember", this->objectMember->toJSON());
-#endif
+
+    cJSON_AddItemToObject(d, "var", this->objectMember->toJSON());
+
     /* d["value"] = self.value.toJSON() */
     cJSON_AddItemToObject(d, "value", this->value->toJSON());
     return d;
@@ -755,13 +698,9 @@ cJSON *MemberAssignStmt::toJSON() {
 
 cJSON *IndexAssignStmt::toJSON() {
     cJSON *d = Stmt::toJSON();
-#ifdef PA1
-    cJSON *target_stmt = cJSON_CreateArray();
-    cJSON_AddItemToObject(d, "targets", target_stmt);
-    cJSON_AddItemToArray(target_stmt, this->listElement->toJSON());
-#else
-    cJSON_AddItemToObject(d, "listElement", this->listElement->toJSON());
-#endif
+
+    cJSON_AddItemToObject(d, "var", this->listElement->toJSON());
+
     /* d["value"] = self.value.toJSON() */
     cJSON_AddItemToObject(d, "value", this->value->toJSON());
     return d;
@@ -769,11 +708,9 @@ cJSON *IndexAssignStmt::toJSON() {
 
 cJSON *IndexAssignExpr::toJSON() {
     cJSON *d = Expr::toJSON();
-#ifdef PA1
+
     cJSON_AddItemToObject(d, "var", this->listElement->toJSON());
-#else
-    cJSON_AddItemToObject(d, "listElement", this->listElement->toJSON());
-#endif
+
     /* d["value"] = self.value.toJSON() */
     cJSON_AddItemToObject(d, "value", this->value->toJSON());
     return d;
@@ -835,23 +772,9 @@ string TypeAnnotation::get_name() {
 }
 } // namespace parser
 
-void print_help_parser(const string_view &exe_name) {
-    std::cout << fmt::format("Usage: {} [ -h | --help ] [ -d | --debug ] <input-file>", exe_name) << std::endl;
-}
-
 #ifdef PA1
 int main(int argc, char *argv[]) {
-    int arg_count = 1;
-    for (int i = 1; i < argc; ++i) {
-        if (argv[i] == "-h"s || argv[i] == "--help"s) {
-            print_help_parser(argv[0]);
-            return 0;
-        } else if (argv[i] == "--debug"s || argv[i] == "-d"s) {
-            yydebug = 1;
-            arg_count++;
-        }
-    }
-    parser::Program *tree = parse(argv[arg_count]);
+    parser::Program *tree = parse(argv[1]);
 
     cJSON *a = tree->toJSON();
     char *out = cJSON_Print(a);

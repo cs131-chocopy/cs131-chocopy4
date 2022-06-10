@@ -11,6 +11,7 @@
 #include "Function.hpp"
 #include "IRBuilder.hpp"
 #include "Module.hpp"
+#include "SymbolType.hpp"
 #include "Type.hpp"
 #include <chocopy_ast.hpp>
 #include <chocopy_optimization.hpp>
@@ -21,6 +22,7 @@
 const std::regex to_class_replace("\\$(.+?)+__init__\\.");
 
 void print_help(const string_view &exe_name);
+void print_help_all(const string_view &exe_name);
 
 namespace semantic {
 class SymbolTable;
@@ -44,6 +46,7 @@ public:
      * return true if successful
      * return false if this name already exits */
     bool push(const string &name, Value *val) {
+        // std::cerr << "push " << name << " in scope " << &inner[inner.size()-1] << std::endl;
         auto result = inner[inner.size() - 1].insert({name, val});
         return result.second;
     }
@@ -51,8 +54,10 @@ public:
     Value *find(const string &name) {
         Value *ret_val = nullptr;
         static_cast<void>(std::find_if(inner.rbegin(), inner.rend(), [&](const auto &item) {
+            // std::cerr << "try to find " << name << " in scope " << &item << std::endl;
             auto value = item.find(name);
             if (value != item.end()) {
+                // std::cerr << "find " << name << " in scope " << &item << std::endl;
                 ret_val = value->second;
                 return true;
             }
@@ -114,15 +119,6 @@ public:
             /** Create GEP */
             store = builder->create_gep(to_find_class,
                                         ConstantInt::get(to_find_class->get_attr_offset(nam), builder->get_module()));
-            if (dynamic_cast<ArrayType *>(store->get_type()) &&
-                dynamic_cast<ArrayType *>(dynamic_cast<ArrayType *>(store->get_type())->get_element_type()) &&
-                dynamic_cast<Class *>(
-                    dynamic_cast<ArrayType *>(dynamic_cast<ArrayType *>(store->get_type())->get_element_type())
-                        ->get_element_type()) &&dynamic_cast<Class *>(
-                    dynamic_cast<ArrayType *>(dynamic_cast<ArrayType *>(store->get_type())->get_element_type())
-                            ->get_element_type())->get_string()!=".list" ) {
-                store = builder->create_load(store);
-            }
         }
         return store;
     }
@@ -154,9 +150,9 @@ public:
     Class *object_class, *int_class, *bool_class, *str_class, *list_class;
     Union *union_put, *union_len, *union_conslist;
 
-    void visit(parser::AssignStmt &) override final{};
+    void visit(parser::AssignStmt &) override final;
     void visit(parser::Program &) override final;
-    void visit(parser::PassStmt &) override final{};
+    void visit(parser::PassStmt &) override final;
     void visit(parser::BinaryExpr &) override final;
     void visit(parser::BoolLiteral &) override final;
     void visit(parser::CallExpr &) override final;
@@ -170,7 +166,7 @@ public:
     void visit(parser::IfExpr &) override final;
     void visit(parser::IntegerLiteral &) override final;
     void visit(parser::ListExpr &) override final;
-    void visit(parser::ListType &) override final{};
+    void visit(parser::ListType &) override final;
     void visit(parser::MemberExpr &) override final;
     void visit(parser::IfStmt &node) override final;
     void visit(parser::MethodCallExpr &) override final;
@@ -178,8 +174,8 @@ public:
     void visit(parser::NonlocalDecl &) override final;
     void visit(parser::ReturnStmt &) override final;
     void visit(parser::StringLiteral &) override final;
-    void visit(parser::TypeAnnotation &) override final{};
-    void visit(parser::TypedVar &) override final{};
+    void visit(parser::TypeAnnotation &) override final;
+    void visit(parser::TypedVar &) override final;
     void visit(parser::UnaryExpr &) override final;
     void visit(parser::VarDef &) override final;
     void visit(parser::WhileStmt &) override final;
@@ -189,8 +185,8 @@ public:
     void visit(parser::VarAssignExpr &) override final;
     void visit(parser::MemberAssignExpr &) override final;
     void visit(parser::IndexAssignExpr &) override final;
-    void visit(parser::Err &) override final{};
-    void visit(parser::Node &) override final{};
+    void visit(parser::Err &) override final;
+    void visit(parser::Node &) override final;
     void visit(parser::IndexExpr &) override final;
 
     IRBuilder *builder;
@@ -204,16 +200,24 @@ public:
     int get_class_id(const string &name) const;
     void transfer_conslist(const string &name);
     Value *get_conslist(vector<Value *> &object_args, Value *called_initial_object);
-    Type *string_to_type(const string &type_name);
-    Type *string_to_type_conslist(string type_name);
-    Type *string_to_type_conslist_init(string type_name);
-    Type *string_to_type_no_conslist(const string &type_name);
-    string get_nested_func_name(semantic::SymbolTable *func_sym, string &name);
+    string get_nested_func_name(semantic::FunctionDefType const * const);
+    Type* semantic_type_to_llvm_type(semantic::SymbolType *type);
     bool func_found = false;
     vector<parser::ClassDef *> *class_stack = new vector<parser::ClassDef *>();
     vector<parser::FuncDef *> *func_stack = new vector<parser::FuncDef *>();
     vector<parser::ClassDef *> *class_finished = new vector<parser::ClassDef *>();
     vector<tuple<string, parser::ReturnStmt *>> *return_stack = new vector<tuple<string, parser::ReturnStmt *>>();
+
+    Value* visitor_return_value = nullptr;
+    Value* visitor_return_object = nullptr;
+    Type* visitor_return_type = nullptr;
+    bool get_lvalue = false; //mark if the visitor is in lvalue context
+
+    vector<Value*> char_list; 
+
+    Type *i32_type,*i1_type,*vstr_type, *ptr_vstr_type;
+    Value* invalid_value;
+    Value* null;
 };
 
 } // namespace lightir

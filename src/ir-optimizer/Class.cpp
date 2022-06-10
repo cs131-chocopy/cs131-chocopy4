@@ -2,17 +2,22 @@
 // Created by yiwei yang on 2021/8/7.
 //
 #include "Class.hpp"
+#include "GlobalVariable.hpp"
 #include <utility>
 
 namespace lightir {
 void Class::add_method(Function *func) {
-    auto func_exist = [&func](Function *func_) { return func_->get_name() == func->get_name(); };
+    auto func_exist = [&func](Function *func_) {
+        auto a = func_->get_name();
+        auto b = func->get_name();
+        return a.substr(a.find('.')) == b.substr(b.find('.'));
+    };
     auto idx = std::find_if(this->methods_->begin(), this->methods_->end(), func_exist);
     if (idx != this->methods_->end()) {
         (*this->methods_)[std::distance(this->methods_->begin(), idx)] = func;
         return;
     }
-    this->methods_->emplace_back(func);
+    this->methods_->push_back(func);
 }
 
 Class::Class(Module *m, const string &name_, int type_tag, Class *super_class_info, bool with_dispatch_table_,
@@ -25,6 +30,8 @@ Class::Class(Module *m, const string &name_, int type_tag, Class *super_class_in
     }
     attributes_ = new vector<AttrInfo *>();
     methods_ = new vector<Function *>();
+    set_type(LabelType::get(prototype_label_ + "_type", this, this->get_module()));
+
 #if defined(WIN32) || defined(_WIN32)
     if (std::ranges::none_of(m->get_class(), [&](const Class *c) { return c->type_tag_ == type_tag; })) {
         m->add_class(this);
@@ -152,8 +159,8 @@ string Class::print_class() {
         } else if (attr->init_obj == nullptr) {
             const_ir +=
                 fmt::format("{} {}", attr->print(), fmt::format("inttoptr (i32 0 to {})", attr->get_type()->print()));
-        } else if (dynamic_cast<ConstantStr *>(attr->init_obj)) {
-            const_ir += fmt::format("{} {}", attr->print(), attr->init_obj->get_name());
+        } else if (dynamic_cast<GlobalVariable *>(attr->init_obj)) {
+            const_ir += fmt::format("{} @{}", attr->print(), attr->init_obj->get_name());
         } else if (dynamic_cast<Union *>(attr->init_obj)) {
             const_ir += attr->print() + " {";
             const_ir += fmt::format("i{}", ((Union *)attr->init_obj)->length_);
@@ -232,12 +239,13 @@ string Class::print_class() {
 }
 
 int Class::get_method_offset(string method) const {
-    return std::distance(methods_->begin(), std::find_if(methods_->begin(), methods_->end(), [&method](Function *tmp) {
-                             return tmp->get_name() == method;
-                         }));
+  return std::distance(methods_->begin(),
+                       std::find_if(methods_->begin(), methods_->end(),
+                                    [&method](Function *tmp) {
+                                      auto& a = tmp->name_;
+                                      return a.substr(a.find('.')+1) == method;
+                                    }));
 }
-
-Type *Class::get_offset_method(int idx_) { return this->methods_->at(idx_)->get_type(); }
 
 string AttrInfo::print() {
     string const_ir;

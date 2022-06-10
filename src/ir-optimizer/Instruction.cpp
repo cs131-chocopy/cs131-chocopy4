@@ -78,11 +78,8 @@ string UnaryInst::print() {
     string instr_ir;
     instr_ir += "%";
     instr_ir += this->get_name();
-    if (this->get_module()->get_instr_op_name(this->get_instr_type()) != "not") {
-        instr_ir += " = sub i32 0, ";
-    } else {
-        instr_ir += " = sub i32 1, ";
-    }
+    instr_ir += " = ";
+    instr_ir += this->get_module()->get_instr_op_name(this->get_instr_type());
     instr_ir += " ";
     instr_ir += print_as_op(this->get_operand(0), false);
     return instr_ir;
@@ -111,6 +108,7 @@ CmpInst::CmpInst(Type *ty, CmpOp op, Value *lhs, Value *rhs, BasicBlock *bb)
 }
 
 void CmpInst::assert_valid() {
+    if (get_operand(0)->get_type()->is_ptr_type() && get_operand(1)->get_type()->is_ptr_type()) return;
     assert(get_operand(0)->get_type()->is_integer_type());
     assert(get_operand(1)->get_type()->is_integer_type());
     assert(dynamic_cast<IntegerType *>(get_operand(0)->get_type())->get_num_bits() ==
@@ -130,14 +128,20 @@ string CmpInst::print() {
     instr_ir += " ";
     instr_ir += print_cmp_type(this->cmp_op_);
     instr_ir += " ";
-    instr_ir += print_as_op(this->get_operand(0), true);
+    if (this->get_operand(0)->get_type()->print().back()=='*') {
+        instr_ir += "ptr ";
+        instr_ir += print_as_op(this->get_operand(0), false);
+    } else {
+        instr_ir += print_as_op(this->get_operand(0), true);
+    }
     instr_ir += ", ";
     instr_ir += print_as_op(this->get_operand(1), false);
     return instr_ir;
 }
 
 CallInst::CallInst(Function *func, std::vector<Value *> args, BasicBlock *bb)
-    : Instruction(func->get_return_type(), Instruction::Call, args.size() + 1, bb) {
+    : Instruction(func->get_return_type(), Instruction::Call, args.size() + 1, bb)
+    , func_type_(func->get_function_type()) {
     /** Runtime will support the check */
     int num_ops = args.size() + 1;
     set_operand(0, func);
@@ -146,7 +150,8 @@ CallInst::CallInst(Function *func, std::vector<Value *> args, BasicBlock *bb)
     }
 }
 CallInst::CallInst(Value *real_func, FunctionType *func, std::vector<Value *> args, BasicBlock *bb)
-    : Instruction(func->get_return_type(), Instruction::Call, args.size() + 1, bb) {
+    : Instruction(func->get_return_type(), Instruction::Call, args.size() + 1, bb)
+    , func_type_(func) {
     /** Runtime will support the check */
     int num_ops = args.size() + 1;
     set_operand(0, real_func);
@@ -162,7 +167,7 @@ CallInst *CallInst::create(Value *real_func, FunctionType *func, std::vector<Val
     return new CallInst(real_func, func, std::move(args), bb);
 }
 
-FunctionType *CallInst::get_function_type() const { return dynamic_cast<FunctionType *>(get_operand(0)->get_type()); }
+FunctionType *CallInst::get_function_type() const { return func_type_; }
 
 string CallInst::print() {
     string instr_ir;
@@ -241,12 +246,7 @@ string BranchInst::print() {
 
     if (is_cond_br()) {
         instr_ir += "  ";
-        if (dynamic_cast<BinaryInst *>(this->get_operand(0)) && dynamic_cast<BinaryInst *>(this->get_operand(0))->get_operand(0)->get_type()->is_bool_type()) {
-            instr_ir += "i1 ";
-            instr_ir += print_as_op(this->get_operand(0), false);
-        }else{
-            instr_ir += print_as_op(this->get_operand(0), true);
-        }
+        instr_ir += print_as_op(this->get_operand(0), true);
         instr_ir += ", label ";
         instr_ir += print_as_op(this->get_operand(1), true);
         instr_ir += ", label ";
@@ -298,7 +298,7 @@ StoreInst *StoreInst::create_store(Value *val, Value *ptr, BasicBlock *bb) { ret
 string StoreInst::print() {
     string instr_ir;
     if (this->get_operand(0)->get_type()->is_list_type()) {
-        if (dynamic_cast<ArrayType *>(this->get_operand(0)->get_type()) &&
+        if ( false && dynamic_cast<ArrayType *>(this->get_operand(0)->get_type()) &&
             dynamic_cast<IntegerType *>(
                 dynamic_cast<ArrayType *>(this->get_operand(0)->get_type())->get_element_type())) {
             instr_ir += fmt::format("{} i8 {}, i8* {}", this->get_module()->get_instr_op_name(this->get_instr_type()),
@@ -331,16 +331,18 @@ string StoreInst::print() {
 
 LoadInst::LoadInst(Type *ty, Value *ptr, BasicBlock *bb) : Instruction(ty, Instruction::Load, 1, bb) {
     set_operand(0, ptr);
-    string tmp_inst;
-    tmp_inst = this->get_operand(0)->get_type()->print();
-
-    if (dynamic_cast<GetElementPtrInst *>(this->get_operand(0))) {
-        get_operand(0)->set_type(tmp_inst.find("i32") != std::string::npos
-                                     ? ArrayType::get(Type::get_int32_type(this->get_module()))
-                                     : ArrayType::get(Type::get_int1_type(this->get_module())));
-    }
+    
+    // I don't know what the fuck the code below is doing
+    //
+    // string tmp_inst;
+    // tmp_inst = this->get_operand(0)->get_type()->print();
+    //
+    // if (dynamic_cast<GetElementPtrInst *>(this->get_operand(0))) {
+    //     get_operand(0)->set_type(tmp_inst.find("i32") != std::string::npos
+    //                                  ? ArrayType::get(Type::get_int32_type(this->get_module()))
+    //                                  : ArrayType::get(Type::get_int1_type(this->get_module())));
+    // }
 }
-
 LoadInst::LoadInst(Value *ptr1, Value *ptr2, BasicBlock *bb) : Instruction(ptr1->get_type(), Instruction::Load, 2, bb) {
     set_operand(0, ptr1);
     set_operand(1, ptr2);
@@ -355,9 +357,8 @@ LoadInst::LoadInst(Value *ptr1, Value *ptr2, BasicBlock *bb) : Instruction(ptr1-
 }
 
 LoadInst *LoadInst::create_load(Type *ty, Value *ptr, BasicBlock *bb) {
-    return new LoadInst(ty->get_ptr_element_type(), ptr, bb);
+    return new LoadInst(ty, ptr, bb);
 }
-
 LoadInst *LoadInst::create_load(Value *ptr1, Value *ptr2, BasicBlock *bb) { return new LoadInst(ptr1, ptr2, bb); }
 
 Type *LoadInst::get_load_type() const { return get_operand(0)->get_type(); }
@@ -379,29 +380,68 @@ string LoadInst::print() {
         load_inst += fmt::format("%{} = {} %$str$prototype_type, %$str$prototype_type* {}", this->get_name(),
                                  this->get_module()->get_instr_op_name(this->get_instr_type()),
                                  print_as_op(this->get_operand(0), false));
-    else if (dynamic_cast<GlobalVariable *>(this->get_operand(0)))
+    else if (dynamic_cast<GlobalVariable *>(this->get_operand(0))) {
         load_inst += fmt::format("%{} = {} {}, {}", this->get_name(),
                                  this->get_module()->get_instr_op_name(this->get_instr_type()),
-                                 std::regex_replace(this->get_operand(0)->get_type()->print(), to_load_replace, ""),
+                                 this->get_operand(0)->get_type()->print(),
                                  this->get_operand(0)->print());
+    }
     else if (dynamic_cast<GetElementPtrInst *>(this->get_operand(0))) {
-        if (dynamic_cast<GetElementPtrInst *>(this->get_operand(0))->get_element_type()->is_func_type())
-            load_inst += fmt::format("%{} = {} {}*, {}** {}", this->get_name(),
-                                     this->get_module()->get_instr_op_name(this->get_instr_type()),
-                                     dynamic_cast<GetElementPtrInst *>(this->get_operand(0))->get_element_type()->print(),
-                                     dynamic_cast<GetElementPtrInst *>(this->get_operand(0))->get_element_type()->print(),
-                                     print_as_op(this->get_operand(0), false));
-        else
-            load_inst += fmt::format("%{} = {} {}, {}* {}", this->get_name(),
+        assert(dynamic_cast<ArrayType*>(this->get_operand(0)->get_type()));
+        auto op_type = (ArrayType*)(this->get_operand(0)->get_type());
+        assert(((ArrayType*)op_type)->get_num_of_elements() == -1); // is pointer
+        auto element_type = op_type->get_element_type();
+        auto element_type_name = element_type->print();
+        load_inst += fmt::format("%{} = {} {}, {}* {}",
+            this->get_name(),
+            this->get_module()->get_instr_op_name(this->get_instr_type()),
+            element_type_name,
+            element_type_name,
+            print_as_op(this->get_operand(0), false)
+        );
+
+        // I don't know what the fuck the code below is doing
+        //
+        // auto tmp_inst = this->get_operand(0)->get_type()->print();
+        // LOG(DEBUG) << "tmp_inst: " << tmp_inst;
+        // if (dynamic_cast<ArrayType *>(this->get_operand(0)->get_type())->get_element_type()->is_string_type() ||
+        //     dynamic_cast<GetElementPtrInst *>(this->get_operand(0)) &&
+        //         dynamic_cast<GetElementPtrInst *>(this->get_operand(0))->get_operand(0)->get_type()->is_string_type() ||
+        //     dynamic_cast<ArrayType *>(this->get_operand(0)->get_type())->get_element_type()->is_bool_type() &&
+        //         !(((GetElementPtrInst *)this->get_operand(0)) &&
+        //           ((GetElementPtrInst *)this->get_operand(0))->get_operand(0)->get_type()->is_list_type())) {
+        //     load_inst += fmt::format("%{} = {} i8*, i8** {}", this->get_name(),
+        //                              this->get_module()->get_instr_op_name(this->get_instr_type()),
+        //                              print_as_op(this->get_operand(0), false));
+        //     return load_inst;
+        // }
+        // auto is_list =
+        //     dynamic_cast<ArrayType *>(((GetElementPtrInst *)this->get_operand(0))->get_element_type()) &&
+        //     dynamic_cast<Class *>(
+        //         ((ArrayType *)((GetElementPtrInst *)this->get_operand(0))->get_element_type())->get_element_type());
+        //
+        // load_inst += fmt::format(
+        //     "%{} = {} {}, {}* {}", this->get_name(), this->get_module()->get_instr_op_name(this->get_instr_type()),
+        //     tmp_inst.find("i32") != std::string::npos ? "i32"
+        //                                               : (is_list ? "%$.list$prototype_type*" : "%$union.conslist*"),
+        //     tmp_inst.find("i32") != std::string::npos ? "i32"
+        //                                               : (is_list ? "%$.list$prototype_type*" : "%$union.conslist*"),
+        //     print_as_op(this->get_operand(0), false));
+    } else if (dynamic_cast<AllocaInst*>(this->get_operand(0))) {
+        auto t=this->get_operand(0)->get_type()->print();
+        t.erase(t.end()-1);
+       load_inst += fmt::format("%{} = {} {}, {}", this->get_name(),
                                  this->get_module()->get_instr_op_name(this->get_instr_type()),
-                                 dynamic_cast<GetElementPtrInst *>(this->get_operand(0))->get_element_type()->print(),
-                                 dynamic_cast<GetElementPtrInst *>(this->get_operand(0))->get_element_type()->print(),
-                                 print_as_op(this->get_operand(0), false));
-    } else
-        load_inst += fmt::format("%{} = {} {}, {}", this->get_name(),
-                                 this->get_module()->get_instr_op_name(this->get_instr_type()),
-                                 std::regex_replace(this->get_operand(0)->get_type()->print(), to_load_replace, ""),
+                                t,
                                  print_as_op(this->get_operand(0), true));
+    } else {
+        auto t=this->get_operand(0)->get_type()->print();
+        if (t.back()=='*') t.erase(t.end()-1);
+       load_inst += fmt::format("%{} = {} {}, {}", this->get_name(),
+                                 this->get_module()->get_instr_op_name(this->get_instr_type()),
+                                 t,
+                                 print_as_op(this->get_operand(0), true));
+    }
     return load_inst;
 }
 
@@ -494,18 +534,11 @@ Type *BitCastInst::get_dest_type() const { return dest_ty_; }
 
 string BitCastInst::print() {
     if (dynamic_cast<Class *>(this->get_operand(0))) {
-        if (this->get_operand(0)->get_type()->print() == "%$object$dispatchTable_type") {
-            return fmt::format("%{} = {} %$object$prototype_type* {} to {}", this->get_name(),
-                               this->get_module()->get_instr_op_name(this->get_instr_type()),
-                               fmt::format("@{}", dynamic_cast<Class *>(this->get_operand(0))->prototype_label_),
-                               this->get_dest_type()->print());
-        } else {
-            return fmt::format("%{} = {} {}* {} to {}", this->get_name(),
-                               this->get_module()->get_instr_op_name(this->get_instr_type()),
-                               this->get_operand(0)->get_type()->print(),
-                               fmt::format("@{}", dynamic_cast<Class *>(this->get_operand(0))->prototype_label_),
-                               this->get_dest_type()->print());
-        }
+        return fmt::format("%{} = {} {}* {} to {}", this->get_name(),
+                           this->get_module()->get_instr_op_name(this->get_instr_type()),
+                           this->get_operand(0)->get_type()->print(),
+                           fmt::format("@{}", dynamic_cast<Class *>(this->get_operand(0))->prototype_label_),
+                           this->get_dest_type()->print());
     } else if (dynamic_cast<ConstantStr *>(this->get_operand(0)) ||
                dynamic_cast<GlobalVariable *>(this->get_operand(0)) &&
                    dynamic_cast<ConstantStr *>(dynamic_cast<GlobalVariable *>(this->get_operand(0))->get_init()))
@@ -524,7 +557,7 @@ TruncInst::TruncInst(OpID op, Value *val, Type *ty, BasicBlock *bb) : Instructio
 }
 
 TruncInst *TruncInst::create_trunc(Value *val, Type *ty, BasicBlock *bb) {
-    return new TruncInst(Instruction::Trunc, val, ty, bb);
+    return new TruncInst(Instruction::ZExt, val, ty, bb);
 }
 
 Type *TruncInst::get_dest_type() const { return dest_ty_; }
@@ -551,48 +584,52 @@ GetElementPtrInst::GetElementPtrInst(Value *ptr, Value *idx)
 }
 
 Type *GetElementPtrInst::get_element_type(Value *ptr, Value *idx) {
-    if (dynamic_cast<Class *>(ptr) && dynamic_cast<Class *>(ptr)->anon_) {
-        auto res = dynamic_cast<Class *>(ptr)->get_anon_type(dynamic_cast<ConstantInt *>(idx)->get_value());
-        if (dynamic_cast<Class *>(res))
-            return ArrayType::get(res);
-        else
-            return res;
-    }
-    if (dynamic_cast<GlobalVariable *>(ptr) &&
-            dynamic_cast<ConstantStr *>(dynamic_cast<GlobalVariable *>(ptr)->init_val_) ||
-        dynamic_cast<Class *>(ptr->get_type()) && ptr->get_type()->is_string_type()) {
-        /** Shall be the string literal */
-        if (dynamic_cast<GlobalVariable *>(ptr)) {
-            if (((ConstantInt *)idx)->get_value() == 3) /** __len__ */
-                return ptr->get_type()->get_module()->get_int32_type();
-            else if (((ConstantInt *)idx)->get_value() == 4) /** __str__ */
-                return ArrayType::get(ptr->get_type()->get_module()->get_str_type());
+    auto ptr_type = ptr->get_type();
+    if (dynamic_cast<ArrayType*>(ptr_type) && ((ArrayType*)ptr_type)->get_num_of_elements() == -1) {
+        // it is a pointer
+        auto inner_type = ((ArrayType*)ptr_type)->get_element_type();
+        if (dynamic_cast<Class*>(inner_type)) {
+            auto class_type = (Class*)inner_type;
+            // it is a class
+            if (dynamic_cast<ConstantInt *>(idx)) {
+                int idx_value = ((ConstantInt*)idx)->get_value();
+                if (class_type->anon_) {
+                    return class_type->get_offset_attr(idx_value);
+                } else {
+                    if (idx_value > 2) {
+                        return class_type->get_offset_attr(idx_value - 3);
+                    } else if (idx_value == 2) { // dispatch table
+                        return ArrayType::get(LabelType::get(class_type->dispatch_table_label_ + "_type", class_type, class_type->get_module()));
+                    } else {
+                        return new IntegerType(32, class_type->get_module());
+                    }
+                }
+            } else {
+                assert(0);
+            }
+        } else {
+            return inner_type;
+            assert(0);
         }
     }
+
+    // I don't know wtf is going on here
+    // so just let it crash
+    assert(0);
+    if (dynamic_cast<Class *>(ptr->get_type()) && dynamic_cast<Class *>(ptr->get_type())->anon_)
+        return dynamic_cast<Class *>(ptr->get_type())->get_anon_type(dynamic_cast<ConstantInt *>(idx)->get_value());
     if (dynamic_cast<Class *>(ptr->get_type())) {
         if (dynamic_cast<ConstantInt *>(idx)) {
             if (dynamic_cast<ConstantInt *>(idx)->get_value() > 2) {
-                return dynamic_cast<Class *>(ptr->get_type())
-                    ->get_offset_attr(dynamic_cast<ConstantInt *>(idx)->get_value() - 3);
+                return dynamic_cast<Class *>(ptr->get_type())->get_offset_attr(dynamic_cast<ConstantInt *>(idx)->get_value() - 3);
             } else if (dynamic_cast<ConstantInt *>(idx)->get_value() == 2) { // dispatch table
-                return ArrayType::get(LabelType::get(dynamic_cast<Class *>(ptr->get_type())->dispatch_table_label_,
-                                                     dynamic_cast<Class *>(ptr->get_type()),
-                                                     ptr->get_type()->get_module()));
+                return LabelType::get(dynamic_cast<Class *>(ptr->get_type())->dispatch_table_label_, dynamic_cast<Class *>(ptr->get_type()),
+                                      ptr->get_type()->get_module());
             } else {
                 return new IntegerType(32, ptr->get_type()->get_module());
             }
         } else {
             return dynamic_cast<Class *>(ptr->get_type());
-        }
-    }
-    if (dynamic_cast<LabelType *>(ptr->get_type())) {
-        if (dynamic_cast<ConstantInt *>(idx)) {
-            /** Get class by name from */
-            return dynamic_cast<LabelType *>(ptr->get_type())
-                ->get_class()
-                ->get_method()
-                ->at(dynamic_cast<ConstantInt *>(idx)->get_value())
-                ->get_type();
         }
     }
     if (dynamic_cast<AllocaInst *>(ptr) && dynamic_cast<AllocaInst *>(ptr)->get_alloca_type()->is_class_anon())
@@ -615,12 +652,18 @@ Type *GetElementPtrInst::get_element_type(Value *ptr, Value *idx) {
             else
                 return nullptr;
     }
+    if (dynamic_cast<GlobalVariable *>(ptr) &&
+            dynamic_cast<ConstantStr *>(dynamic_cast<GlobalVariable *>(ptr)->init_val_) ||
+        dynamic_cast<Class *>(ptr->get_type()) && ptr->get_type()->is_string_type()) {
+        /** Shall be the string literal */
+        if (dynamic_cast<GlobalVariable *>(ptr))
+            if (((ConstantInt *)idx)->get_value() == 3) /** __len__ */
+                return ptr->get_type()->get_module()->get_int32_type();
+            else if (((ConstantInt *)idx)->get_value() == 4) /** __str__ */
+                return ArrayType::get(ptr->get_type()->get_module()->get_str_type());
+    }
     /** if the access item is symbolic, should not be conslist */
-    if (ptr->get_type()->is_list_type() &&
-        dynamic_cast<Class *>(dynamic_cast<ArrayType *>(ptr->get_type())->get_element_type()) &&
-        dynamic_cast<Class *>(dynamic_cast<ArrayType *>(ptr->get_type())->get_element_type())
-                ->get_name()
-                .find("list") != string::npos) {
+    if (ptr->get_type()->is_list_type()) {
         /** Shall be the string literal */
         if (((ConstantInt *)idx)->get_value() == 3) /** __len__ */
             return ptr->get_type()->get_module()->get_int32_type();
@@ -644,20 +687,13 @@ Type *GetElementPtrInst::get_element_type(Value *ptr, Value *idx) {
     if (ptr->get_type()->is_string_type()) {
         return IntegerType::get(8, ptr->get_type()->get_module());
     }
-    if (!dynamic_cast<Class *>(ty) && dynamic_cast<BitCastInst *>(ptr) &&
-        dynamic_cast<CallInst *>(dynamic_cast<BitCastInst *>(ptr)->get_operand(0)) &&
-        dynamic_cast<Function *>(
-            dynamic_cast<CallInst *>(dynamic_cast<BitCastInst *>(ptr)->get_operand(0))->get_operand(0))
-                ->get_name() == "alloc") {
-        ty = dynamic_cast<LabelType *>(ty)->get_class();
-    }
     if (dynamic_cast<Class *>(ty)) {
         if (dynamic_cast<ConstantInt *>(idx)) {
             if (dynamic_cast<ConstantInt *>(idx)->get_value() > 2) {
                 return dynamic_cast<Class *>(ty)->get_offset_attr(dynamic_cast<ConstantInt *>(idx)->get_value() - 3);
             } else if (dynamic_cast<ConstantInt *>(idx)->get_value() == 2) { // dispatch table
-                return ArrayType::get(LabelType::get(dynamic_cast<Class *>(ty)->dispatch_table_label_,
-                                                     dynamic_cast<Class *>(ty), ty->get_module()));
+                return LabelType::get(dynamic_cast<Class *>(ty)->dispatch_table_label_, dynamic_cast<Class *>(ty),
+                                      ty->get_module());
             } else {
                 return new IntegerType(32, ty->get_module());
             }
@@ -668,19 +704,11 @@ Type *GetElementPtrInst::get_element_type(Value *ptr, Value *idx) {
     if (dynamic_cast<LabelType *>(ty)) {
         if (dynamic_cast<ConstantInt *>(idx)) {
             /** Get class by name from */
-            if (dynamic_cast<ConstantInt *>(idx)->get_value() <
-                dynamic_cast<LabelType *>(ty)->get_class()->get_method()->size())
-                return dynamic_cast<LabelType *>(ty)
-                    ->get_class()
-                    ->get_method()
-                    ->at(dynamic_cast<ConstantInt *>(idx)->get_value())
-                    ->get_type();
-            else
-                return dynamic_cast<LabelType *>(ty)
-                    ->get_class()
-                    ->get_attribute()
-                    ->at(dynamic_cast<ConstantInt *>(idx)->get_value() - 3)
-                    ->get_type();
+            return dynamic_cast<LabelType *>(ty)
+                ->get_class()
+                ->get_method()
+                ->at(dynamic_cast<ConstantInt *>(idx)->get_value())
+                ->get_type();
         }
     }
     if (ty->is_array_type()) {
@@ -717,49 +745,40 @@ string GetElementPtrInst::print() {
                 ->print(),
             print_as_op(this->get_operand(0), false),
             dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print() : print_as_op(idx, true));
-    else if (dynamic_cast<GlobalVariable *>(this->get_operand(0)) &&
-                 ((GlobalVariable *)this->get_operand(0))->init_val_ != nullptr &&
-                 dynamic_cast<ConstantStr *>(dynamic_cast<GlobalVariable *>(this->get_operand(0))->init_val_) ||
-             op0_type == "%$str$prototype_type")
-        instr_ir += fmt::format(
-            "%{} = {} %$str$prototype_type, %$str$prototype_type* {}, i32 0, {}", this->get_name(),
-            this->get_module()->get_instr_op_name(this->get_instr_type()), print_as_op(this->get_operand(0), false),
-            dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print() : print_as_op(idx, true));
     else if (op0_type.ends_with("$prototype_type") || op0_type.starts_with("%$class"))
         instr_ir += fmt::format("%{} = {} {}, {}* {}, i32 0, {}", this->get_name(),
                                 this->get_module()->get_instr_op_name(this->get_instr_type()), op0_type, op0_type,
                                 print_as_op(this->get_operand(0), false),
                                 dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print()
                                                                  : print_as_op(idx, true));
-
-    else if (op0_type.ends_with("$dispatchTable_type")) {
-        instr_ir += fmt::format("%{} = {} {}, {}* {}, i32 0, {}", this->get_name(),
-                                this->get_module()->get_instr_op_name(this->get_instr_type()), op0_type, op0_type,
-                                print_as_op(this->get_operand(0), false),
+    else if (op0_type == "%$str$prototype_type")
+        instr_ir += fmt::format("%{} = {} {}, {} {}, i32 0, {}", this->get_name(),
+                                this->get_module()->get_instr_op_name(this->get_instr_type()), op0_type,
+                                "%$str$prototype_type*", print_as_op(this->get_operand(0), false),
                                 dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print()
                                                                  : print_as_op(idx, true));
-    } else if (dynamic_cast<LoadInst *>(this->get_operand(0))) {
-        instr_ir += fmt::format(
-            "%{} = {} {}, {} {}, {}", this->get_name(), this->get_module()->get_instr_op_name(this->get_instr_type()),
-            std::regex_replace(dynamic_cast<LoadInst *>(this->get_operand(0))->get_type()->print(),to_load_replace,""),
-            dynamic_cast<LoadInst *>(this->get_operand(0))->get_type()->print(),
-            print_as_op(this->get_operand(0), false),
-            dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print() : print_as_op(idx, true));
-    } else if (this->get_operand(0)->get_type()->is_string_type() ||
-               this->get_operand(0)->get_type()->is_ptr_type() &&
-                   dynamic_cast<ArrayType *>(this->get_operand(0)->get_type())->get_element_type()->is_bool_type())
+    else if (op0_type.ends_with("$dispatchTable_type")) {
+        instr_ir += fmt::format("%{} = {} {}, {}* {}, i32 0, {}", this->get_name(),
+                                this->get_module()->get_instr_op_name(this->get_instr_type()), op0_type,
+                                op0_type, print_as_op(this->get_operand(0), false),
+                                dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print()
+                                                                 : print_as_op(idx, true));
+    }
+    else if (this->get_operand(0)->get_type()->is_string_type() ||
+             this->get_operand(0)->get_type()->is_ptr_type() &&
+                 dynamic_cast<ArrayType *>(this->get_operand(0)->get_type())->get_element_type()->is_bool_type())
         instr_ir += fmt::format(
             "%{} = {} i8*, i8** {}, {}", this->get_name(),
             this->get_module()->get_instr_op_name(this->get_instr_type()), print_as_op(this->get_operand(0), false),
             dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print() : print_as_op(idx, true));
     else if (dynamic_cast<AllocaInst *>(this->get_operand(0)) || dynamic_cast<BitCastInst *>(this->get_operand(0)) ||
              dynamic_cast<GetElementPtrInst *>(this->get_operand(0)) ||
-             this->get_operand(0)->get_type()->is_list_type()) {
+             this->get_operand(0)->get_type()->is_list_type())
         instr_ir += fmt::format(
             "%{} = {} {}, {}* {}, {}", this->get_name(), this->get_module()->get_instr_op_name(this->get_instr_type()),
             op0_type, op0_type, print_as_op(this->get_operand(0), false),
             dynamic_cast<ConstantInt *>(idx) ? dynamic_cast<ConstantInt *>(idx)->print() : print_as_op(idx, true));
-    } else
+    else
         instr_ir += fmt::format(
             "%{} = {} {}, {} {}, {}", this->get_name(), this->get_module()->get_instr_op_name(this->get_instr_type()),
             op0_type, op0_type.starts_with("[") ? op0_type + "*" : op0_type,
@@ -777,7 +796,6 @@ GetElementPtrInst *GetElementPtrInst::create_gep(Value *ptr, Value *idx, BasicBl
 }
 
 GetElementPtrInst *GetElementPtrInst::create_gep(Value *ptr, Value *idx) { return new GetElementPtrInst(ptr, idx); }
-
 Value *GetElementPtrInst::get_idx() const { return idx; }
 
 PhiInst::PhiInst(std::vector<Value *> vals, std::vector<BasicBlock *> val_bbs, Type *ty, BasicBlock *bb)

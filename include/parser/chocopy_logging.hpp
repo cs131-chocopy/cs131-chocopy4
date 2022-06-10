@@ -10,15 +10,13 @@
 #include <filesystem>
 #include <fmt/color.h>
 #include <fmt/format.h>
-#include <fmt/os.h>
 #include <fmt/ostream.h>
+#include <fmt/os.h>
 #include <fstream>
 #include <iostream>
-#include <list>
 #include <sstream>
 #include <string>
 
-using std::list;
 using std::string;
 enum LogLevel { DEBUG = 0, INFO, WARNING, ERROR };
 struct LocationInfo {
@@ -56,7 +54,7 @@ private:
 class LogStream {
 public:
     LogStream() { sstream_ = new std::stringstream(); }
-    ~LogStream() = default;
+    ~LogStream() { delete sstream_; };
 
     template <typename T> LogStream &operator<<(const T &val) noexcept {
         (*sstream_) << val;

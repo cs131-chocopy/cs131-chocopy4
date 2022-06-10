@@ -143,7 +143,7 @@ private:
 };
 
 class BinaryInst : public Instruction {
-private:
+public:
     BinaryInst(Type *ty, OpID id, Value *v1, Value *v2, BasicBlock *bb);
 
 public:
@@ -228,6 +228,8 @@ public:
     FunctionType *get_function_type() const;
 
     string print() override;
+private:
+    FunctionType *func_type_;
 };
 
 class BranchInst : public Instruction {

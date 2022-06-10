@@ -1,6 +1,7 @@
 #include "Constant.hpp"
 #include "Module.hpp"
 #include <chocopy_parse.hpp>
+#include <fmt/core.h>
 #include <iostream>
 
 using namespace std;
@@ -22,6 +23,10 @@ string ConstantInt::print() {
         const_ir += fmt::format("{}", this->get_value());
     }
     return const_ir;
+}
+
+string ConstantNull::print() {
+    return fmt::format("{} null", this->get_type()->print());
 }
 
 ConstantArray::ConstantArray(ArrayType *ty, const vector<Constant *> &val) : Constant(ty, "", val.size()) {
@@ -71,8 +76,13 @@ string ConstantStr::print() {
                                 this->get_type()->get_type_id(), int(value_.size() / 4) + 5, value_.size(),
                                 value_.size() + 1, value_.size() + 1, id_) +
                     "\n}";
+        string s;
+        for (char c:value_){
+            int a=c/16,b=c%16;
+            s+=fmt::format("\\{:x}{:x}", a,b);
+        }
         const_ir += fmt::format("\n@str.const_{} = private unnamed_addr global [{} x i8] c\"{}\\00\", align 1\n", id_,
-                                value_.size() + 1, value_);
+                                value_.size() + 1, s);
         header_print_ = false;
     } else {
         const_ir += fmt::format("@const_{}", id_);
