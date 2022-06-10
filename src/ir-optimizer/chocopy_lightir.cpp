@@ -410,7 +410,8 @@ void LightWalker::visit(parser::Program &node) {
     builder->create_asm("addi fp, sp, 0");
     scope.push("main", curr_func);
 
-    //char_list.push_back(CONST(126-32+1));
+    auto ptr_list_type = ArrayType::get(list_class);
+/*FIXME: disable str-for temporarily.
     for(int i=0; i<=126; i++) {
             string s("1");
             s[0]=i;
@@ -437,7 +438,6 @@ void LightWalker::visit(parser::Program &node) {
             char_list.push_back(p);
             //scope.push_in_global(node.var->identifier->name,p);
     }
-    auto ptr_list_type = ArrayType::get(list_class);
     if (true) {
         Instruction *char_table;
         vector<Value*> conslist_para;
@@ -465,7 +465,7 @@ void LightWalker::visit(parser::Program &node) {
         );
         builder->create_store(char_table, g_char_table);
         scope.push_in_global("global_char_table", g_char_table);
-    }
+    }*/
 
     invalid_value=GlobalVariable::create(
         "invalid_list_pointer",
