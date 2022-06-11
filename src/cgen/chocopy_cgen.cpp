@@ -490,6 +490,8 @@ pair<int, bool> CodeGen::getConstIntVal(Value *val) {
                 return std::make_pair(0, false);
             }
         }
+    } else if (dynamic_cast<ConstantNull*>(val)) {
+        return std::make_pair(0, true);
     }
     LOG(ERROR) << "Function getConstIntVal exception!";
     exit(EXIT_FAILURE);
