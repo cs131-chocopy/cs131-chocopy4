@@ -5,9 +5,11 @@
 #ifndef CHOCOPY_COMPILER_RISCVBACKEND_HPP
 #define CHOCOPY_COMPILER_RISCVBACKEND_HPP
 
+#include "GlobalVariable.hpp"
 #include "InstGen.hpp"
 #include <chocopy_cgen.hpp>
 #include <filesystem>
+#include <fmt/core.h>
 
 using namespace lightir;
 
@@ -87,6 +89,37 @@ public:
     string emit_prototype(Class classInfo) {
         string asm_code;
         asm_code += emit_global_label(classInfo.prototype_label_);
+        asm_code += classInfo.prototype_label_;
+        if (classInfo.is_class_anon()) {
+        } else {
+            asm_code += fmt::format("\n  .word {}\n", classInfo.type_tag_);
+            asm_code += fmt::format("  .word {}\n", 3 + classInfo.get_attribute()->size());
+            if (classInfo.dispatch_table_label_ == "") {
+                asm_code += fmt::format("  .word {}\n", 0);
+            } else {
+                asm_code += fmt::format("  .word {}\n", classInfo.dispatch_table_label_);
+            }
+        }
+        for (auto attr : *classInfo.get_attribute()) {
+            if (attr->init_obj != nullptr) {
+                if (auto glob = dynamic_cast<GlobalVariable*>(attr->init_obj); glob) {
+                    asm_code += fmt::format("  .word {}\n", glob->get_name());
+                } else {
+                    // FIXME: I'm not sure what's going on here.
+                    asm_code += fmt::format("  .word {}\n", 0);
+                }
+            } else {
+                asm_code += fmt::format("  .word {}\n", attr->init_val);
+            }
+        }
+
+        if (classInfo.dispatch_table_label_ != "") {
+            asm_code += emit_global_label(classInfo.dispatch_table_label_);
+            for (auto method: *classInfo.get_method()) {
+                asm_code += fmt::format("  .word {}\n", method->get_name());
+            }
+        }
+        LOG(INFO) << asm_code;
         return asm_code;
     }
 
