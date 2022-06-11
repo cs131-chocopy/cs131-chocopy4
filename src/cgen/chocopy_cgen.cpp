@@ -1,3 +1,4 @@
+#include "Constant.hpp"
 #include "Module.hpp"
 #include <chocopy_cgen.hpp>
 #include <chocopy_lightir.hpp>
@@ -18,7 +19,7 @@ using namespace lightir;
 namespace cgen {
 const std::regex to_replace("0A(\t|)");
 
-string_view InstGen::Addr::get_name() const {
+string InstGen::Addr::get_name() const {
     if (str.empty())
         return fmt::format("[{}, #{}]", reg.get_name(), std::to_string(this->offset));
     else
@@ -138,24 +139,32 @@ string CodeGen::generateModuleCode(map<Value *, int> rm) {
     asm_code += backend->defineSym("error_oom", backend->ERROR_OOM);
     asm_code += backend->defineSym("error_nyi", backend->ERROR_NYI);
 #endif
-    asm_code = replaceStringLiteral(asm_code);
 
-    for (auto &classInfo : this->module->get_class()) {
-        backend->emit_prototype(*classInfo);
-    }
+    // FIXME: I don't know what the code below does.
+    // asm_code = replaceStringLiteral(asm_code);
 
     asm_code += generateHeaderCode();
 
+    asm_code += ".data\n";
+    for (auto &classInfo : this->module->get_class()) {
+        asm_code += backend->emit_prototype(*classInfo);
+    }
     asm_code += CodeGen::generateGOT();
+    asm_code += generateGlobalVarsCode();
 
-    for (auto &func : this->module->get_functions()) {
+    asm_code += ".text\n";
+    for (auto func : this->module->get_functions()) {
+        assert(dynamic_cast<Function*>(func));
         if (func->get_basic_blocks().size()) {
             asm_code += CodeGen::generateFunctionCode(func);
         }
     }
-    asm_code += backend->start_code();
-    asm_code += generateClassCode();
-    asm_code += generateGlobalVarsCode();
+
+    // FIXME: I don't know what the code below does.
+    // backend->emit_prototype 已经生成 $object$prototype, $object$dispatchTable
+    // 不知道为什么这里要重新生成
+    // asm_code += backend->start_code();
+    // asm_code += generateClassCode();
 
     asm_code += generateFooterCode();
 
@@ -167,16 +176,17 @@ string CodeGen::generateModuleCode(bool autoAlloc) {
 }
 
 std::map<Value *, int> CodeGen::regAlloc() {
-/* The regAlloc algorithm Your Code Here */
+    // TODO: regAlloc algorithm
 }
 
 string CodeGen::generateFunctionCode(Function *func) {
     string asm_code;
-
+    // TODO: generate function code
     return asm_code;
 }
 
 void CodeGen::allocateStackSpace(Function *func) {
+    // TODO: allocate stack space
 }
 
 CodeGen::CodeGen(shared_ptr<Module> module) : module(move(module)), backend(new RiscVBackEnd()) {}
@@ -189,6 +199,7 @@ string CodeGen::generateFunctionEntryCode(Function *func) {
 }
 string CodeGen::generateFunctionExitCode(Function *func) {
     std::string asm_code;
+    // TODO: generate function exit code
     return asm_code;
 }
 
@@ -199,16 +210,19 @@ string CodeGen::generateClassCode() {
 
 string CodeGen::generateHeaderCode() {
     string asm_code;
+    // TODO: generate header code
     return asm_code;
 }
 string CodeGen::generateFooterCode() {
     string asm_code;
+    // TODO: generate footer code
     return asm_code;
 }
 string CodeGen::generateFunctionPostCode(Function *func) {
     std::string asm_code;
     auto tmp_asm_code = CodeGen::getLabelName(func, 1) + ":";
     asm_code += CodeGen::comment(tmp_asm_code, "function postcode");
+    // TODO: generate function post code
     return asm_code;
 }
 string CodeGen::generateBasicBlockCode(BasicBlock *bb) {
@@ -221,6 +235,7 @@ string CodeGen::generateBasicBlockCode(BasicBlock *bb) {
 string CodeGen::generateInstructionCode(Instruction *inst) {
     std::string asm_code;
     auto &ops = inst->get_operands();
+    // TODO: generate instruction code
     switch (inst->get_instr_type()) {
         case lightir::Instruction::Ret:
         case lightir::Instruction::Br:
@@ -263,6 +278,7 @@ string CodeGen::getLabelName(Function *func, int type) {
 string CodeGen::generateFunctionCall(Instruction *inst, const string &func_name, vector<Value *> ops, int return_reg,
                                      int sp_ofs) {
     std::string asm_code;
+    // TODO: generate function call
     return asm_code;
 }
 vector<InstGen::Reg> CodeGen::getAllRegisters(Function *func) {
@@ -371,11 +387,9 @@ string CodeGen::generateGOT() {
         vecGOT[i.second] = i.first;
     }
     for (auto &i : vecGOT) {
-        asm_code += ".globl " + i->get_name() + "\n";
+        asm_code += fmt::format(".globl {}\n", i->get_name());
     }
-    for (auto &i : vecGOT) {
-        asm_code += ".long " + i->get_name() + "\n";
-    }
+    LOG(INFO) << asm_code;
     return asm_code;
 }
 string CodeGen::generateGlobalVarsCode() {
@@ -392,6 +406,7 @@ string CodeGen::generateGlobalVarsCode() {
             }
         }
     }
+    LOG(INFO) << asm_code;
     return asm_code;
 }
 string CodeGen::generateInitializerCode(Constant *init) {
@@ -510,6 +525,7 @@ string CodeGen::comment(const string &t, const string &s) {
 string CodeGen::generateVext(int vlen, int elen, lightir::VExtInst::vv_type type, const InstGen::Reg &len) {
     static int counter;
     std::string asm_code;
+    // TODO: generate VextInst
     switch (type) {
     case VExtInst::vv_type::VADD:
     case VExtInst::VLE:
@@ -698,7 +714,7 @@ int main(int argc, char *argv[]) {
         output_stream.close();
 
         cgen::CodeGen code_generator(m);
-        asm_code = code_generator.generateModuleCode(true);
+        asm_code = code_generator.generateModuleCode(code_generator.regAlloc());
         if (assem) {
             cout << "RiscV Asm:\n";
 
