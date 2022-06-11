@@ -1385,6 +1385,10 @@ void LightWalker::visit(parser::NoneLiteral &node)
 }
 void LightWalker::visit(parser::NonlocalDecl &) { }
 void LightWalker::visit(parser::ReturnStmt &node) {
+    if (node.value == nullptr) {
+        builder->create_ret(new ConstantNull(ArrayType::get((Class*)scope.find_in_global("object"))));
+        return;
+    }
     visitor_return_value = nullptr;
     node.value->accept(*this);
     assert(visitor_return_value);
