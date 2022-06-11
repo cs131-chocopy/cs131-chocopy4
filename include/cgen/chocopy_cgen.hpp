@@ -48,10 +48,10 @@ class CodeGen {
 #endif
 private:
     shared_ptr<Module> module;
-    map<Value *, int> register_mapping;
-    map<Value *, int> stack_mapping;
-    set<Value *> allocated;
-    map<Value *, int> GOT;
+    map<std::string, int> register_mapping;
+    map<std::string, int> stack_mapping;
+    map<std::string, int> alloca_mapping;
+    map<std::string, int> GOT;
     map<Instruction *, set<Value *>> context_active_vars;
     int stack_size;
     int spill_cost_total;
@@ -64,8 +64,7 @@ public:
 #ifdef LLVM
     explicit CodeGen() : CodeGen(chocopy_m){};
 #endif
-    string generateModuleCode(map<Value *, int> register_mapping);
-    string generateModuleCode(bool autoAlloc);
+    string generateModuleCode();
     string generateFunctionCode(Function *func);
     string generateFunctionEntryCode(Function *func);
     string generateFunctionExitCode(Function *func);
@@ -79,21 +78,18 @@ public:
     string getLabelName(Function *func, int type);
     string generateFunctionCall(Instruction *inst, const string &func_name, vector<Value *> ops, int return_reg = 0,
                                 int sp_ofs = 0);
-    vector<InstGen::Reg> getAllRegisters(Function *func);
-    vector<InstGen::Reg> getCallerSaveRegisters(Function *func);
-    vector<InstGen::Reg> getCalleeSaveRegisters(Function *func);
     void allocateStackSpace(Function *func);
-    bool isSameMapping(Value *a, Value *b);
+    [[nodiscard]] string stackToReg(int offset, int reg);
+    [[nodiscard]] string stackToReg(string name, int reg);
+    [[nodiscard]] string valueToReg(Value* v, int reg);
+    [[nodiscard]] string regToStack(int reg, int offset);
+    [[nodiscard]] string regToStack(int reg, string name);
     string virtualRegMove(vector<Value *> target, vector<Value *> source, int sp_ofs = 0);
     string generateVext(int vlen, int elen, lightir::VExtInst::vv_type type, const InstGen::Reg &len);
-    string virtualRegMove(Value *target, Value *source, int sp_ofs = 0);
-    string assignToSpecificReg(Value *val, int target, int sp_ofs = 0);
-    string getFromSpecificReg(Value *val, int source, int sp_ofs = 0);
     string generateGOT();
     string generateGlobalVarsCode();
     string generateInitializerCode(Constant *init);
     pair<int, bool> getConstIntVal(Value *val);
-    int queryGOT(Value *val);
     string comment(const string &s);
     string comment(const string &t, const string &s);
     map<Value *, int> regAlloc();

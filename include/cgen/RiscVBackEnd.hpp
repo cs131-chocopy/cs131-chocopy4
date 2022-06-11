@@ -18,7 +18,7 @@ class InstGen;
 const string indent = fmt::format("{:<2}", " ");
 
 /** https://riscv.org/wp-content/uploads/2015/01/riscv-calling.pdf */
-vector<string> reg_name = {"zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "fp", "s1" "a0",
+vector<string> reg_name = {"zero", "ra", "sp", "gp", "tp", "t0", "t1", "t2", "fp", "s1", "a0",
                            "a1", "a2", "a3", "a4", "a5", "a6", "a7", "s2", "s3", "s4",
                            "s5", "s6", "s7", "s8", "s9", "s10", "s11", "t3", "t4", "t5",
                            "t6" };
@@ -89,10 +89,10 @@ public:
     string emit_prototype(Class classInfo) {
         string asm_code;
         asm_code += emit_global_label(classInfo.prototype_label_);
-        asm_code += classInfo.prototype_label_;
+        asm_code += classInfo.prototype_label_ + ":\n";
         if (classInfo.is_class_anon()) {
         } else {
-            asm_code += fmt::format("\n  .word {}\n", classInfo.type_tag_);
+            asm_code += fmt::format("  .word {}\n", classInfo.type_tag_);
             asm_code += fmt::format("  .word {}\n", 3 + classInfo.get_attribute()->size());
             if (classInfo.dispatch_table_label_ == "") {
                 asm_code += fmt::format("  .word {}\n", 0);
@@ -115,6 +115,7 @@ public:
 
         if (classInfo.dispatch_table_label_ != "") {
             asm_code += emit_global_label(classInfo.dispatch_table_label_);
+            asm_code += classInfo.dispatch_table_label_ + ":\n";
             for (auto method: *classInfo.get_method()) {
                 asm_code += fmt::format("  .word {}\n", method->get_name());
             }

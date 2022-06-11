@@ -1,7 +1,11 @@
 #include "Constant.hpp"
+#include "GlobalVariable.hpp"
+#include "InstGen.hpp"
 #include "Module.hpp"
+#include "Type.hpp"
 #include <chocopy_cgen.hpp>
 #include <chocopy_lightir.hpp>
+#include <fmt/core.h>
 #if __cplusplus > 202000L && !defined(__clang__)
 #include <ranges>
 #endif
@@ -17,7 +21,26 @@ using namespace lightir;
 #endif
 
 namespace cgen {
-const std::regex to_replace("0A(\t|)");
+int getTypeSizeInBytes(Type *type) {
+    if (dynamic_cast<ArrayType*>(type)) {
+        return 4;
+    } else if (type->is_integer_type()) {
+        return 4; // bool and int are 4 bytes
+    } else if (auto class_ = dynamic_cast<Class*>(type); class_ && class_->anon_) {
+        int ret = 0;
+        for (auto attr : *class_->get_attribute()) {
+            ret += getTypeSizeInBytes(attr->get_type());
+        }
+        return ret;
+    } else if (type->is_union_type()) {
+        // %$union.type = type { i32 }
+        // %$union.len = type { i32 }
+        // %$union.put = type { i32 }
+        // %$union.conslist = type { i32 }
+        return 4;
+    }
+    assert(0);
+}
 
 string InstGen::Addr::get_name() const {
     if (str.empty())
@@ -85,9 +108,35 @@ string InstGen::instConst(string (*inst)(const Reg &, const Value &, string), co
     return asm_code;
 }
 
-string CodeGen::generateModuleCode(map<Value *, int> rm) {
+string CodeGen::stackToReg(int offset, int reg) {
+    return fmt::format("  lw {}, {}(fp)\n", reg_name[reg], offset);
+}
+string CodeGen::stackToReg(string name, int reg) {
+    return stackToReg(stack_mapping.at(name), reg);
+}
+string CodeGen::regToStack(int reg, int offset) {
+    return fmt::format("  sw {}, {}(fp)\n", reg_name[reg], offset);
+}
+string CodeGen::regToStack(int reg, string name) {
+    return regToStack(reg, stack_mapping.at(name));
+}
+string CodeGen::valueToReg(Value *v, int reg) {
+    if (dynamic_cast<ConstantNull*>(v)) {
+        return fmt::format("  li {}, 0\n", reg_name[reg]);
+    } else if (auto c = dynamic_cast<ConstantInt*>(v); c) {
+        return fmt::format("  li {}, {}\n", reg_name[reg], c->get_value());
+    } else if (auto a = dynamic_cast<AllocaInst*>(v)) {
+        return fmt::format("  addi {}, fp, {}\n", reg_name[reg], alloca_mapping[a->get_name()]);
+    } else if (auto g  = dynamic_cast<GlobalVariable*>(v); g) {
+        auto r = reg_name[reg];
+        auto op = v->get_name();
+        return fmt::format("  lui {}, %hi({})\n  lw {}, %lo({})({})\n", r, op, r, op, r);
+    }
+    return stackToReg(v->get_name(), reg);
+}
+
+string CodeGen::generateModuleCode() {
     string asm_code;
-    this->register_mapping = std::move(rm);
 
     /** Symbolic assembler constants defined here (to add others, override
      * initAsmConstants in an extension of CodeGenBase):
@@ -171,22 +220,76 @@ string CodeGen::generateModuleCode(map<Value *, int> rm) {
     return asm_code;
 }
 
-string CodeGen::generateModuleCode(bool autoAlloc) {
-    return generateModuleCode(autoAlloc ? regAlloc() : map<Value *, int>());
-}
-
 std::map<Value *, int> CodeGen::regAlloc() {
     // TODO: regAlloc algorithm
 }
 
 string CodeGen::generateFunctionCode(Function *func) {
     string asm_code;
-    // TODO: generate function code
+    asm_code += fmt::format(".globl {}\n{}:\n", func->get_name(), func->get_name());
+
+    std::vector<int> saved_regs = {1, 8};
+    int frame_size = 0;
+    for(auto b : func->get_basic_blocks()) {
+        for (auto i : b->get_instructions()) {
+            if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
+                frame_size += getTypeSizeInBytes(alloca->get_alloca_type());
+            } else {
+                frame_size += 4;
+            }
+        }
+    }
+    frame_size += saved_regs.size() * 4;
+    frame_size = (frame_size + 15) & ~15;
+
+    register_mapping.clear();
+    stack_mapping.clear();
+    int offset = -frame_size;
+    for (auto &reg : saved_regs) {
+        offset += 4;
+        stack_mapping['$' + reg_name[reg]] = offset;
+        register_mapping['$' + reg_name[reg]] = reg;
+    }
+    for(auto b : func->get_basic_blocks()) {
+        for (auto i : b->get_instructions()) {
+            if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
+                offset += getTypeSizeInBytes(alloca->get_alloca_type());
+                alloca_mapping[alloca->get_name()] = offset;
+            } else {
+                offset += 4;
+                stack_mapping[i->get_name()] = offset;
+            }
+        }
+    }
+    int args = func->get_num_of_args();
+    for (int i = 0; i < std::min(args, 8); i++) {
+        register_mapping[fmt::format("%arg{}", i)] = i + 10;
+    }
+    if (args > 8) {
+        for(int i = 8; i < args; i++) {
+            stack_mapping[fmt::format("%arg{}", i)] = (i-8) * 4;
+        }
+    }
+
+    asm_code += fmt::format("  addi sp, sp, {}\n", -frame_size);
+    asm_code += fmt::format("  sw ra, {}(sp)\n", frame_size - 4);
+    asm_code += fmt::format("  sw fp, {}(sp)\n", frame_size - 8);
+    asm_code += fmt::format("  addi fp, sp, {}\n", frame_size);
+
+    for(auto b : func->get_basic_blocks()) {
+        asm_code += fmt::format(".L{}_{}:\n", func->get_name(), b->get_name());
+        asm_code += generateBasicBlockCode(b);
+    }
+
+    asm_code += fmt::format("  lw ra, {}(sp)\n", frame_size - 4);
+    asm_code += fmt::format("  lw fp, {}(sp)\n", frame_size - 8);
+    asm_code += fmt::format("  addi sp, sp, {}\n", frame_size);
+    asm_code += fmt::format("  ret\n", frame_size);
     return asm_code;
 }
 
 void CodeGen::allocateStackSpace(Function *func) {
-    // TODO: allocate stack space
+    // maybe deprecated
 }
 
 CodeGen::CodeGen(shared_ptr<Module> module) : module(move(module)), backend(new RiscVBackEnd()) {}
@@ -195,16 +298,18 @@ string CodeGen::generateFunctionEntryCode(Function *func) {
     string asm_code;
     asm_code += CodeGen::getLabelName(func, 0) + ":";
     asm_code += CodeGen::comment("function preprocess");
+    // maybe deprecated
     return asm_code;
 }
 string CodeGen::generateFunctionExitCode(Function *func) {
     std::string asm_code;
-    // TODO: generate function exit code
+    // maybe deprecated
     return asm_code;
 }
 
 string CodeGen::generateClassCode() {
     string class_asm;
+    // maybe deprecated
     return class_asm;
 }
 
@@ -222,7 +327,6 @@ string CodeGen::generateFunctionPostCode(Function *func) {
     std::string asm_code;
     auto tmp_asm_code = CodeGen::getLabelName(func, 1) + ":";
     asm_code += CodeGen::comment(tmp_asm_code, "function postcode");
-    // TODO: generate function post code
     return asm_code;
 }
 string CodeGen::generateBasicBlockCode(BasicBlock *bb) {
@@ -248,23 +352,49 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
         case lightir::Instruction::Rem:
         case lightir::Instruction::And:
         case lightir::Instruction::Or:
-        case lightir::Instruction::Alloca:
-        case lightir::Instruction::Load:
+        case lightir::Instruction::Alloca: {
+            break;
+        }
+        case lightir::Instruction::Load: {
+            string op = ops[0]->get_name();
+            if (alloca_mapping.contains(op)) {
+                asm_code += fmt::format("  lw t1, {}(fp)\n", alloca_mapping.at(op));
+            } else {
+                asm_code += valueToReg(ops[0], 5);
+                asm_code += fmt::format("  lw t1, t0\n");
+            }
+            asm_code += regToStack(6, inst->get_name());
+            break;
+        }
         case lightir::Instruction::Store:
         case lightir::Instruction::Shl:
         case lightir::Instruction::AShr:
         case lightir::Instruction::LShr:
         case lightir::Instruction::ICmp:
         case lightir::Instruction::PHI:
-        case lightir::Instruction::Call:
+        case lightir::Instruction::Call: {
+            auto func_name = inst->get_operands()[0]->get_name();
+            asm_code += generateFunctionCall(inst, func_name, inst->get_operands(), 10);
+            asm_code += regToStack(10, inst->get_name());
+            break;
+        }
         case lightir::Instruction::GEP:
         case lightir::Instruction::ZExt:
         case lightir::Instruction::InElem:
         case lightir::Instruction::ExElem:
-        case lightir::Instruction::BitCast:
+        case lightir::Instruction::BitCast: {
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += regToStack(5, inst->get_name());
+            break;
+        }
         case lightir::Instruction::Trunc:
         case lightir::Instruction::VExt:
-        case lightir::Instruction::ASM:
+        case lightir::Instruction::ASM: {
+            string asm_ = ((AsmInst*)inst)->get_asm();
+            asm_ = std::regex_replace(asm_, std::regex("\\\\0A"), "\n  ");
+            asm_code += "  " + asm_ + "\n";
+            break;
+        }
         case lightir::Instruction::ACCSTART:
         case lightir::Instruction::ACCEND:;
     }
@@ -277,97 +407,33 @@ string CodeGen::getLabelName(Function *func, int type) {
 }
 string CodeGen::generateFunctionCall(Instruction *inst, const string &func_name, vector<Value *> ops, int return_reg,
                                      int sp_ofs) {
+    // ops[0] is the function
     std::string asm_code;
-    // TODO: generate function call
-    return asm_code;
-}
-vector<InstGen::Reg> CodeGen::getAllRegisters(Function *func) {
-    std::set<InstGen::Reg> registers;
-    for (auto &arg : func->get_args()) {
-        if (this->register_mapping.count(arg) && this->register_mapping.at(arg) <= InstGen::max_reg_id) {
-            registers.insert(InstGen::Reg(this->register_mapping.at(arg)));
-        }
-    }
-    for (auto &bb : func->get_basic_blocks()) {
-        for (auto &inst : bb->get_instructions()) {
-            if (this->register_mapping.count(inst) && this->register_mapping.at(inst) <= InstGen::max_reg_id) {
-                registers.insert(InstGen::Reg(this->register_mapping.at(inst)));
-            }
-        }
-    }
-    for (auto &reg : temp_regs) { // used as temp regs
-        registers.insert(reg);
-    }
-    return std::vector<InstGen::Reg>(registers.begin(), registers.end());
-}
-vector<InstGen::Reg> CodeGen::getCallerSaveRegisters(Function *func) {
-    std::set<InstGen::Reg> registers;
-    for (auto &reg : CodeGen::getAllRegisters(func)) {
-        if (std::count(caller_save_regs.begin(), caller_save_regs.end(), reg) &&
-            !std::count(temp_regs.begin(), temp_regs.end(), reg)) {
-            registers.insert(reg);
-        }
-    }
-    return std::vector<InstGen::Reg>(registers.begin(), registers.end());
-}
-vector<InstGen::Reg> CodeGen::getCalleeSaveRegisters(Function *func) {
-    std::set<InstGen::Reg> registers;
-    for (auto &reg : CodeGen::getAllRegisters(func)) {
-        if (std::count(callee_save_regs.begin(), callee_save_regs.end(), reg)) {
-            registers.insert(reg);
-        }
-    }
-    return std::vector<InstGen::Reg>(registers.begin(), registers.end());
-}
-bool CodeGen::isSameMapping(Value *a, Value *b) {
-    if (this->register_mapping.count(a) && this->register_mapping.count(b)) {
-        return this->register_mapping.at(a) == this->register_mapping.at(b);
-    }
-    if (this->stack_mapping.count(a) && this->stack_mapping.count(b)) {
-        return this->stack_mapping.at(a) == this->stack_mapping.at(b);
-    }
-    return false;
-}
+    int args = ops.size() - 1;
+    int sp_delta = 0;
 
-std::string CodeGen::virtualRegMove(Value *target, Value *source, int sp_ofs) {
-    std::string asm_code;
-    if (CodeGen::isSameMapping(target, source)) {
-        return asm_code;
+    for (int i = 0; i < std::min(8, args); i++) {
+        asm_code += valueToReg(ops[i+1], 10 + i);
     }
-    int alu_op0 = this->register_mapping.count(target) ? this->register_mapping.at(target) : op_reg_0;
-    asm_code += CodeGen::assignToSpecificReg(source, alu_op0, sp_ofs);
-    asm_code += CodeGen::getFromSpecificReg(target, alu_op0, sp_ofs);
-    return asm_code;
-}
-string CodeGen::assignToSpecificReg(Value *val, int target, int sp_ofs) {
-    std::string asm_code;
-    auto val_const = dynamic_cast<ConstantInt *>(val);
-    auto val_global = dynamic_cast<GlobalVariable *>(val);
-    if (val_const) {
-        int imm = val_const->get_value();
-        asm_code += InstGen::set_value(InstGen::Reg(target), InstGen::Constant(imm));
-    } else if (val_global) {
-        asm_code +=
-            //                        InstGen::get_address(InstGen::Reg(op_reg_2), InstGen::Label(".global",
-            //                        CodeGen::queryGOT(val_global) * 4));
-            asm_code += backend->emit_lw(InstGen::Reg(target), InstGen::Addr(InstGen::Reg(op_reg_2), 0));
-    } else if (register_mapping.count(val) && register_mapping.at(val) <= InstGen::max_reg_id) {
-        auto source = register_mapping.at(val);
-        asm_code += backend->emit_mv(InstGen::Reg(target), InstGen::Reg(source));
-    } else if (allocated.count(val)) {
-        auto offset = stack_mapping.at(val) + sp_ofs;
-        asm_code += InstGen::instConst(backend->emit_add, InstGen::Reg(target), InstGen::Reg("sp"), InstGen::Constant(offset));
-    } else if (stack_mapping.count(val)) {
-        auto offset = stack_mapping.at(val) + sp_ofs;
-        asm_code += backend->emit_lw(InstGen::Reg(target), InstGen::Addr(InstGen::Reg("sp"), offset));
-    } else {
-        LOG(ERROR) << "Function assignToSpecificReg exception!";
-        exit(EXIT_FAILURE);
+    if (args > 8) {
+        args -= 8;
+        sp_delta = args * 4;
+        asm_code += fmt::format("  addi sp, sp, {}\n", -sp_delta);
+        for (int i = 0; i < args; i++) {
+            auto arg = ops[i+9];
+            asm_code += valueToReg(arg, 5);
+            asm_code += fmt::format("  sw t0, {}(sp)\n", i * 4);
+        }
     }
-    return asm_code;
-}
-string CodeGen::getFromSpecificReg(Value *val, int source, int sp_ofs) {
-    std::string asm_code;
+    
+    asm_code += fmt::format("  call {}\n", func_name);
+    
+    if (sp_delta != 0) {
+        asm_code += fmt::format("  addi sp, sp, {}\n", +sp_delta);
+    }
+    if (return_reg != 10) {
+        asm_code += fmt::format("   addi {}, a0, 0\n", reg_name[return_reg]);
+    }
     return asm_code;
 }
 string CodeGen::generateGOT() {
@@ -376,18 +442,11 @@ string CodeGen::generateGOT() {
     for (auto &global_var : this->module->get_global_variable()) {
         if (global_var->init_val_ != nullptr) {
             int count = this->GOT.size();
-            if (!GOT.count(global_var)) {
-                this->GOT[global_var] = count;
+            if (!GOT.count(global_var->get_name())) {
+                this->GOT[global_var->get_name()] = count;
+                asm_code += fmt::format(".globl {}\n", global_var->get_name());
             }
         }
-    }
-    std::vector<Value *> vecGOT;
-    vecGOT.resize(this->GOT.size());
-    for (auto &i : GOT) {
-        vecGOT[i.second] = i.first;
-    }
-    for (auto &i : vecGOT) {
-        asm_code += fmt::format(".globl {}\n", i->get_name());
     }
     LOG(INFO) << asm_code;
     return asm_code;
@@ -511,7 +570,6 @@ pair<int, bool> CodeGen::getConstIntVal(Value *val) {
     LOG(ERROR) << "Function getConstIntVal exception!";
     exit(EXIT_FAILURE);
 }
-int CodeGen::queryGOT(Value *val) { return this->GOT.at(val); }
 string CodeGen::comment(const string &s) {
     std::string asm_code;
     asm_code += fmt::format("# {}\n", s);
@@ -568,55 +626,6 @@ InstGen::Addr cgen::CodeGen::makeConstStr(const string &str) {
                                     lightir::ConstantStr::get(str, module->get_global_variable().size(), module.get()));
     return {fmt::format("const_{}", module->get_global_variable().size() - 1)};
 };
-
-string CodeGen::virtualRegMove(vector<Value *> target, vector<Value *> source, int sp_ofs) {
-    std::string asm_code;
-    assert(target.size() == source.size());
-    int sz = target.size();
-    std::list<std::pair<Value *, Value *>> L;
-    for (int i = 0; i < sz; i++) {
-        L.emplace_back(target.at(i), source.at(i));
-    }
-    for (auto it = L.begin(); it != L.end(); it++) {
-        for (auto it2 = L.begin(); it2 != L.end(); it2++) {
-            if (it2 != it && CodeGen::isSameMapping(it2->first, it->first)) {
-                LOG(ERROR) << "virtualRegMove race condition";
-                exit(EXIT_FAILURE);
-            }
-        }
-    }
-    Value *tg_val = nullptr;
-    while (!L.empty()) {
-        bool flag = true;
-        for (auto it = L.begin(); it != L.end(); it++) {
-            bool ok = true;
-            for (auto it2 = L.begin(); it2 != L.end(); it2++) {
-                if (it2 != it && CodeGen::isSameMapping(it2->second, it->first)) {
-                    ok = false;
-                }
-            }
-            if (ok) {
-                asm_code += CodeGen::virtualRegMove(it->first, it->second, sp_ofs);
-                L.erase(it);
-                flag = false;
-                break;
-            }
-        }
-        if (flag) {
-            if (tg_val != nullptr) {
-                asm_code += CodeGen::getFromSpecificReg(tg_val, op_reg_0, sp_ofs);
-            }
-            auto it = L.begin();
-            asm_code += CodeGen::assignToSpecificReg(it->second, op_reg_0, sp_ofs);
-            tg_val = it->first;
-            L.erase(it);
-        }
-    }
-    if (tg_val != nullptr) {
-        asm_code += CodeGen::getFromSpecificReg(tg_val, op_reg_0, sp_ofs);
-    }
-    return asm_code;
-}
 
 } // namespace cgen
 
@@ -714,7 +723,7 @@ int main(int argc, char *argv[]) {
         output_stream.close();
 
         cgen::CodeGen code_generator(m);
-        asm_code = code_generator.generateModuleCode(code_generator.regAlloc());
+        asm_code = code_generator.generateModuleCode();
         if (assem) {
             cout << "RiscV Asm:\n";
 
@@ -725,11 +734,11 @@ int main(int argc, char *argv[]) {
         output_stream1.open(output_file1, std::ios::out);
         output_stream1 << asm_code;
         output_stream1.close();
-        if (assem) {
-            auto command_string = "cat " + target_path + ".s ";
-            int re_code = std::system(command_string.c_str());
-            LOG(INFO) << command_string << re_code;
-        }
+        // if (assem) {
+        //     auto command_string = "cat " + target_path + ".s ";
+        //     int re_code = std::system(command_string.c_str());
+        //     LOG(INFO) << command_string << re_code;
+        // }
     }
 #ifdef LLVM
     llvmGetPassPluginInfo(m);
@@ -762,7 +771,7 @@ int main(int argc, char *argv[]) {
 #else
         auto command_string_0 = "riscv64-unknown-elf-gcc -mabi=ilp32 -march=rv32imac -g -o " + target_path + " " +
                                 target_path +
-                                ".s -L./ -L/Users/yiweiyang/project/bak/cmake-build-debug-kali-gcc -lchocopy_stdlib";
+                                ".s -L./ -L./build -lchocopy_stdlib";
 #endif
         int re_code_0 = std::system(command_string_0.c_str());
         LOG(INFO) << command_string_0 << re_code_0;

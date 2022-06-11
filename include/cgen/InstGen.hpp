@@ -5,7 +5,6 @@
 #ifndef CHOCOPY_COMPILER_INSTGEN_HPP
 #define CHOCOPY_COMPILER_INSTGEN_HPP
 
-#include "RiscVBackEnd.hpp"
 #include <chocopy_logging.hpp>
 #include <string>
 #include <string_view>
