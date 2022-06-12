@@ -734,11 +734,6 @@ int main(int argc, char *argv[]) {
         output_stream1.open(output_file1, std::ios::out);
         output_stream1 << asm_code;
         output_stream1.close();
-        // if (assem) {
-        //     auto command_string = "cat " + target_path + ".s ";
-        //     int re_code = std::system(command_string.c_str());
-        //     LOG(INFO) << command_string << re_code;
-        // }
     }
 #ifdef LLVM
     llvmGetPassPluginInfo(m);
@@ -813,6 +808,7 @@ int main(int argc, char *argv[]) {
 
     bool O0 = false;
     bool O3 = false;
+    bool assem = false;
 
     for (int i = 1; i < argc; ++i) {
         if (argv[i] == "-h"s || argv[i] == "--help"s) {
@@ -826,6 +822,8 @@ int main(int argc, char *argv[]) {
                 print_help(argv[0]);
                 return 0;
             }
+        } else if (argv[i] == "-assem"s) {
+            assem = true;
         } else if (argv[i] == "-O3"s) {
             O3 = true;
         } else if (argv[i] == "-O0"s) {
@@ -865,25 +863,25 @@ int main(int argc, char *argv[]) {
 
     std::shared_ptr<lightir::Module> m;
     if (!error->empty()) {
-        tree->add_error(error);
+        tree->add_error(error.get());
     } else {
         cJSON *a = tree->toJSON();
         char *out = cJSON_Print(a);
         LOG(INFO) << "ChocoPy Language Server:\n" << out << "\n";
 
-        auto *LightWalker = new lightir::LightWalker(globalScope);
+        auto *LightWalker = new lightir::LightWalker(globalScope.get());
         tree->accept(*LightWalker);
         m = LightWalker->get_module();
         m->source_file_name_ = input_path;
         lightir::PassManager PM(m.get());
-        if (O3 = true) {
-            PM.add_pass<lightir::Dominators>();
-            PM.add_pass<lightir::Mem2Reg>();
-            PM.add_pass<lightir::LoopFind>();
-            PM.add_pass<lightir::Vectorization>();
-            PM.add_pass<lightir::Multithread>();
-            PM.add_pass<lightir::ActiveVars>();
-            PM.add_pass<lightir::ConstPropagation>();
+        if (O3 == true) {
+            // PM.add_pass<lightir::Dominators>();
+            // PM.add_pass<lightir::Mem2Reg>();
+            // PM.add_pass<lightir::LoopFind>();
+            // PM.add_pass<lightir::Vectorization>();
+            // PM.add_pass<lightir::Multithread>();
+            // PM.add_pass<lightir::ActiveVars>();
+            // PM.add_pass<lightir::ConstPropagation>();
         }
         PM.run();
 
@@ -898,7 +896,7 @@ int main(int argc, char *argv[]) {
         output_stream.close();
 
         cgen::CodeGen code_generator(m);
-        asm_code = code_generator.generateModuleCode(true);
+        asm_code = code_generator.generateModuleCode();
         std::ofstream output_stream1;
         auto output_file1 = target_path + ".s";
         output_stream1.open(output_file1, std::ios::out);
