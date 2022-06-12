@@ -67,7 +67,7 @@ public:
     string generateModuleCode();
     string generateFunctionCode(Function *func);
     string generateFunctionEntryCode(Function *func);
-    string generateFunctionExitCode(Function *func);
+    string generateFunctionExitCode();
     string generateFunctionPostCode(Function *func);
     string generateHeaderCode();
     string generateFooterCode();

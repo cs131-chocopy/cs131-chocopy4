@@ -129,8 +129,7 @@ string CodeGen::valueToReg(Value *v, int reg) {
     } else if (auto a = dynamic_cast<AllocaInst*>(v)) {
         return fmt::format("  addi {}, fp, {}\n", reg_name[reg], alloca_mapping[a->get_name()]);
     } else if (auto name = v->get_name(); GOT.contains(name)) {
-        assert(0);
-        // return fmt::format("  la {}, {}\n", reg_name[reg], name);
+        return fmt::format("  la {}, {}\n", reg_name[reg], name);
     } else if (register_mapping.contains(v->get_name())) {
         return fmt::format("  addi {}, {}, 0\n", reg_name[reg], reg_name[register_mapping.at(v->get_name())]);
     }
@@ -227,28 +226,30 @@ std::map<Value *, int> CodeGen::regAlloc() {
 }
 
 string CodeGen::generateFunctionCode(Function *func) {
+    // std::cerr << "Generating code for function " << func->get_name() << std::endl;
     // 注意这里没有保存 a0, a1, a2, a3, a4, a5, a6, a7
     // 因为函数生成 LLVM IR 时会给每个参数 %opx = alloca i32; store %arg, ptr %opx
     // 所以他们只会在函数最初 alloca-store 时被使用
     string asm_code;
     asm_code += fmt::format(".globl {}\n{}:\n", func->get_name(), func->get_name());
 
-    int frame_size = 0;
+    stack_size = 0;
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
             if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
-                frame_size += getTypeSizeInBytes(alloca->get_alloca_type());
+                stack_size += getTypeSizeInBytes(alloca->get_alloca_type());
             } else {
-                frame_size += 4;
+                stack_size += 4;
             }
         }
     }
-    frame_size += 2 * 4; // %sp %fp
-    frame_size = (frame_size + 15) & ~15;
+    stack_size += 2 * 4; // %sp %fp
+    stack_size = (stack_size + 15) & ~15;
+    // std::cerr << "Stack size: " << stack_size << std::endl;
 
     register_mapping.clear();
     stack_mapping.clear();
-    int offset = -frame_size;
+    int offset = -stack_size-4;
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
             if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
@@ -270,20 +271,15 @@ string CodeGen::generateFunctionCode(Function *func) {
         }
     }
 
-    asm_code += fmt::format("  addi sp, sp, {}\n", -frame_size);
-    asm_code += fmt::format("  sw ra, {}(sp)\n", frame_size - 4);
-    asm_code += fmt::format("  sw fp, {}(sp)\n", frame_size - 8);
-    asm_code += fmt::format("  addi fp, sp, {}\n", frame_size);
+    asm_code += fmt::format("  addi sp, sp, {}\n", -stack_size);
+    asm_code += fmt::format("  sw ra, {}(sp)\n", stack_size - 4);
+    asm_code += fmt::format("  sw fp, {}(sp)\n", stack_size - 8);
+    asm_code += fmt::format("  addi fp, sp, {}\n", stack_size);
 
     for(auto b : func->get_basic_blocks()) {
         asm_code += fmt::format(".L{}_{}:\n", func->get_name(), b->get_name());
         asm_code += generateBasicBlockCode(b);
     }
-
-    asm_code += fmt::format("  lw ra, {}(sp)\n", frame_size - 4);
-    asm_code += fmt::format("  lw fp, {}(sp)\n", frame_size - 8);
-    asm_code += fmt::format("  addi sp, sp, {}\n", frame_size);
-    asm_code += fmt::format("  ret\n", frame_size);
     return asm_code;
 }
 
@@ -300,9 +296,11 @@ string CodeGen::generateFunctionEntryCode(Function *func) {
     // maybe deprecated
     return asm_code;
 }
-string CodeGen::generateFunctionExitCode(Function *func) {
+[[nodiscard]]  string CodeGen::generateFunctionExitCode() {
     std::string asm_code;
-    // maybe deprecated
+    asm_code += fmt::format("  lw ra, {}(sp)\n", stack_size - 4);
+    asm_code += fmt::format("  lw fp, {}(sp)\n", stack_size - 8);
+    asm_code += fmt::format("  addi sp, sp, {}\n", stack_size);
     return asm_code;
 }
 
@@ -341,6 +339,12 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
     // TODO: generate instruction code
     switch (inst->get_instr_type()) {
         case lightir::Instruction::Ret: {
+            assert(ops.size() == 0 || ops.size() == 1);
+            if (ops.size() == 1) {
+                asm_code += valueToReg(ops[0], 10);
+            }
+            asm_code += generateFunctionExitCode();
+            asm_code += "  ret\n";
             break;
         }
         case lightir::Instruction::Br: {
@@ -788,7 +792,7 @@ int main(int argc, char *argv[]) {
 #ifdef LLVM
     llvmGetPassPluginInfo(m);
 #endif
-    if (!emit) {
+    if (emit) {
         cout << "\nLLVM IR:\n; ModuleID = 'chocopy'\nsource_filename = \"\"" << input_path << "\"\"\n\n" << IR;
     }
 
