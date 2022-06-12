@@ -1,3 +1,4 @@
+#include "BasicBlock.hpp"
 #include "Constant.hpp"
 #include "GlobalVariable.hpp"
 #include "InstGen.hpp"
@@ -259,6 +260,20 @@ string CodeGen::generateFunctionCode(Function *func) {
                 offset += 4;
                 stack_mapping[i->get_name()] = offset;
             }
+
+            // create lw for phi nodes at the end of basic block
+            if (auto phi = dynamic_cast<PhiInst*>(i); phi) {
+                auto ops = phi->get_operands();
+                assert(phi->get_operands().size() == 4);
+                assert(dynamic_cast<BasicBlock*>(ops[1]) && dynamic_cast<BasicBlock*>(ops[3]));
+                auto v1 = ops[0];
+                auto b1 = (BasicBlock*)ops[1];
+                auto v2 = ops[2];
+                auto b2 = (BasicBlock*)ops[3];
+                int offset = stack_mapping[phi->get_name()];
+                phi_store[b1].push_back({v1, offset});
+                phi_store[b2].push_back({v2, offset});
+            }
         }
     }
     int args = func->get_num_of_args();
@@ -277,7 +292,7 @@ string CodeGen::generateFunctionCode(Function *func) {
     asm_code += fmt::format("  addi fp, sp, {}\n", stack_size);
 
     for(auto b : func->get_basic_blocks()) {
-        asm_code += fmt::format(".L{}_{}:\n", func->get_name(), b->get_name());
+        asm_code += fmt::format("{}:\n", getLabelName(b), b->get_name());
         asm_code += generateBasicBlockCode(b);
     }
     return asm_code;
@@ -328,8 +343,22 @@ string CodeGen::generateFunctionPostCode(Function *func) {
 }
 string CodeGen::generateBasicBlockCode(BasicBlock *bb) {
     std::string asm_code;
+    current_basic_block = bb;
     for (auto &inst : bb->get_instructions()) {
         asm_code += CodeGen::generateInstructionCode(inst);
+    }
+    asm_code += generateBasicBlockPostCode(bb);
+    return asm_code;
+}
+string CodeGen::generateBasicBlockPostCode(BasicBlock *bb) {
+    std::string asm_code;
+    if (phi_store.contains(bb)) {
+        for(auto& kv : phi_store.at(bb)) {
+            auto v = kv.first;
+            auto offset = kv.second;
+            asm_code += valueToReg(v, 5);
+            asm_code += regToStack(5, offset);
+        }
     }
     return asm_code;
 }
@@ -348,6 +377,18 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Br: {
+            asm_code += generateBasicBlockPostCode(current_basic_block);
+            if (ops.size() == 1) {
+                // unconditional branch
+                assert(dynamic_cast<BasicBlock*>(ops[0]));
+                asm_code += fmt::format("  j {}\n", getLabelName((BasicBlock*)ops[0]));
+            } else if (ops.size() == 3) {
+                asm_code += valueToReg(ops[0], 5);
+                asm_code += fmt::format("  beq t0, zero, {}\n", getLabelName((BasicBlock*)ops[2]));
+                asm_code += fmt::format("  j {}\n", getLabelName((BasicBlock*)ops[1]));
+            } else {
+                assert(0);
+            }
             break;
         }
         case lightir::Instruction::Neg: {

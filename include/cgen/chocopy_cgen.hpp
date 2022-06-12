@@ -52,12 +52,14 @@ private:
     map<std::string, int> stack_mapping;
     map<std::string, int> alloca_mapping;
     map<std::string, int> GOT;
+    map<BasicBlock *, std::vector<std::pair<Value*, int>>> phi_store;
     map<Instruction *, set<Value *>> context_active_vars;
     int stack_size;
     int spill_cost_total;
     int color_bonus_total;
     bool debug;
     RiscVBackEnd *backend;
+    BasicBlock* current_basic_block;
 
 public:
     explicit CodeGen(shared_ptr<Module> module);
@@ -73,6 +75,7 @@ public:
     string generateFooterCode();
     string generateClassCode();
     string generateBasicBlockCode(BasicBlock *bb);
+    string generateBasicBlockPostCode(BasicBlock *bb);
     string generateInstructionCode(Instruction *inst);
     string getLabelName(BasicBlock *bb);
     string getLabelName(Function *func, int type);
