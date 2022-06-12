@@ -3,6 +3,7 @@
 #include "InstGen.hpp"
 #include "Module.hpp"
 #include "Type.hpp"
+#include <cassert>
 #include <chocopy_cgen.hpp>
 #include <chocopy_lightir.hpp>
 #include <fmt/core.h>
@@ -127,10 +128,9 @@ string CodeGen::valueToReg(Value *v, int reg) {
         return fmt::format("  li {}, {}\n", reg_name[reg], c->get_value());
     } else if (auto a = dynamic_cast<AllocaInst*>(v)) {
         return fmt::format("  addi {}, fp, {}\n", reg_name[reg], alloca_mapping[a->get_name()]);
-    } else if (auto g  = dynamic_cast<GlobalVariable*>(v); g) {
-        auto r = reg_name[reg];
-        auto op = v->get_name();
-        return fmt::format("  lui {}, %hi({})\n  lw {}, %lo({})({})\n", r, op, r, op, r);
+    } else if (auto name = v->get_name(); GOT.contains(name)) {
+        assert(0);
+        // return fmt::format("  la {}, {}\n", reg_name[reg], name);
     } else if (register_mapping.contains(v->get_name())) {
         return fmt::format("  addi {}, {}, 0\n", reg_name[reg], reg_name[register_mapping.at(v->get_name())]);
     }
@@ -230,7 +230,6 @@ string CodeGen::generateFunctionCode(Function *func) {
     string asm_code;
     asm_code += fmt::format(".globl {}\n{}:\n", func->get_name(), func->get_name());
 
-    std::vector<int> saved_regs = {1, 8};
     int frame_size = 0;
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
@@ -241,17 +240,12 @@ string CodeGen::generateFunctionCode(Function *func) {
             }
         }
     }
-    frame_size += saved_regs.size() * 4;
+    frame_size += 2 * 4; // %sp %fp
     frame_size = (frame_size + 15) & ~15;
 
     register_mapping.clear();
     stack_mapping.clear();
     int offset = -frame_size;
-    for (auto &reg : saved_regs) {
-        offset += 4;
-        stack_mapping['$' + reg_name[reg]] = offset;
-        register_mapping['$' + reg_name[reg]] = reg;
-    }
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
             if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
@@ -383,6 +377,8 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             string op = ops[0]->get_name();
             if (alloca_mapping.contains(op)) {
                 asm_code += fmt::format("  lw t1, {}(fp)\n", alloca_mapping.at(op));
+            } else if (GOT.contains(op)) {
+                asm_code += fmt::format("  lui t1, %hi({})\n  lw t1, %lo({})(t1)\n", op, op);
             } else {
                 asm_code += valueToReg(ops[0], 5);
                 asm_code += fmt::format("  lw t1, 0(t0)\n");
