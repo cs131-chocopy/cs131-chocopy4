@@ -131,6 +131,8 @@ string CodeGen::valueToReg(Value *v, int reg) {
         auto r = reg_name[reg];
         auto op = v->get_name();
         return fmt::format("  lui {}, %hi({})\n  lw {}, %lo({})({})\n", r, op, r, op, r);
+    } else if (register_mapping.contains(v->get_name())) {
+        return fmt::format("  addi {}, {}, 0\n", reg_name[reg], reg_name[register_mapping.at(v->get_name())]);
     }
     return stackToReg(v->get_name(), reg);
 }
@@ -263,11 +265,11 @@ string CodeGen::generateFunctionCode(Function *func) {
     }
     int args = func->get_num_of_args();
     for (int i = 0; i < std::min(args, 8); i++) {
-        register_mapping[fmt::format("%arg{}", i)] = i + 10;
+        register_mapping[fmt::format("arg{}", i)] = i + 10;
     }
     if (args > 8) {
         for(int i = 8; i < args; i++) {
-            stack_mapping[fmt::format("%arg{}", i)] = (i-8) * 4;
+            stack_mapping[fmt::format("arg{}", i)] = (i-8) * 4;
         }
     }
 
@@ -341,17 +343,39 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
     auto &ops = inst->get_operands();
     // TODO: generate instruction code
     switch (inst->get_instr_type()) {
-        case lightir::Instruction::Ret:
-        case lightir::Instruction::Br:
-        case lightir::Instruction::Neg:
-        case lightir::Instruction::Not:
-        case lightir::Instruction::Add:
-        case lightir::Instruction::Sub:
-        case lightir::Instruction::Mul:
-        case lightir::Instruction::Div:
-        case lightir::Instruction::Rem:
-        case lightir::Instruction::And:
-        case lightir::Instruction::Or:
+        case lightir::Instruction::Ret: {
+            break;
+        }
+        case lightir::Instruction::Br: {
+            break;
+        }
+        case lightir::Instruction::Neg: {
+            break;
+        }
+        case lightir::Instruction::Not: {
+            break;
+        }
+        case lightir::Instruction::Add: {
+            break;
+        }
+        case lightir::Instruction::Sub: {
+            break;
+        }
+        case lightir::Instruction::Mul: {
+            break;
+        }
+        case lightir::Instruction::Div: {
+            break;
+        }
+        case lightir::Instruction::Rem: {
+            break;
+        }
+        case lightir::Instruction::And: {
+            break;
+        }
+        case lightir::Instruction::Or: {
+            break;
+        }
         case lightir::Instruction::Alloca: {
             break;
         }
@@ -361,34 +385,61 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
                 asm_code += fmt::format("  lw t1, {}(fp)\n", alloca_mapping.at(op));
             } else {
                 asm_code += valueToReg(ops[0], 5);
-                asm_code += fmt::format("  lw t1, t0\n");
+                asm_code += fmt::format("  lw t1, 0(t0)\n");
             }
             asm_code += regToStack(6, inst->get_name());
             break;
         }
-        case lightir::Instruction::Store:
-        case lightir::Instruction::Shl:
-        case lightir::Instruction::AShr:
-        case lightir::Instruction::LShr:
-        case lightir::Instruction::ICmp:
-        case lightir::Instruction::PHI:
+        case lightir::Instruction::Store: {
+            asm_code += valueToReg(ops[0],  5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += fmt::format("  sw t0, 0(t1)\n");
+            break;
+        }
+        case lightir::Instruction::Shl: {
+            break;
+        }
+        case lightir::Instruction::AShr: {
+            break;
+        }
+        case lightir::Instruction::LShr:{
+            break;
+        }
+        case lightir::Instruction::ICmp: {
+            break;
+        }
+        case lightir::Instruction::PHI: {
+            break;
+        }
         case lightir::Instruction::Call: {
             auto func_name = inst->get_operands()[0]->get_name();
             asm_code += generateFunctionCall(inst, func_name, inst->get_operands(), 10);
             asm_code += regToStack(10, inst->get_name());
             break;
         }
-        case lightir::Instruction::GEP:
-        case lightir::Instruction::ZExt:
-        case lightir::Instruction::InElem:
-        case lightir::Instruction::ExElem:
+        case lightir::Instruction::GEP: {
+            break;
+        }
+        case lightir::Instruction::ZExt: {
+            break;
+        }
+        case lightir::Instruction::InElem: {
+            break;
+        }
+        case lightir::Instruction::ExElem: {
+            break;
+        }
         case lightir::Instruction::BitCast: {
             asm_code += valueToReg(ops[0], 5);
             asm_code += regToStack(5, inst->get_name());
             break;
         }
-        case lightir::Instruction::Trunc:
-        case lightir::Instruction::VExt:
+        case lightir::Instruction::Trunc: {
+            break;
+        }
+        case lightir::Instruction::VExt: {
+            break;
+        }
         case lightir::Instruction::ASM: {
             string asm_ = ((AsmInst*)inst)->get_asm();
             asm_ = std::regex_replace(asm_, std::regex("\\\\0A"), "\n  ");
