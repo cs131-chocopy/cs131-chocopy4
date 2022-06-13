@@ -250,6 +250,7 @@ string CodeGen::generateFunctionCode(Function *func) {
 
     register_mapping.clear();
     stack_mapping.clear();
+    alloca_mapping.clear();
     int offset = -stack_size-4;
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
