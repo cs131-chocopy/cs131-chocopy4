@@ -463,6 +463,20 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::GEP: {
+            auto gep = (GetElementPtrInst*)inst;
+            auto ptr = ops[0];
+            assert(dynamic_cast<ArrayType*>(ptr->get_type())  && ((ArrayType*)ptr->get_type())->get_num_of_elements() == -1);
+            auto inner_type = ((ArrayType*)ptr->get_type())->get_element_type();
+            assert(dynamic_cast<ConstantInt*>(ops[1]));
+            auto idx = ((ConstantInt*)ops[1])->get_value();
+            if (dynamic_cast<Class*>(inner_type)) {
+                // it seems that every attribute is 4 bytes
+                asm_code += valueToReg(ptr, 5);
+                asm_code += fmt::format("  addi t0, t0, {}\n", idx * 4);
+                asm_code += regToStack(5, gep->get_name());
+            } else {
+                assert(0 && "not implemented");
+            }
             break;
         }
         case lightir::Instruction::ZExt: {
