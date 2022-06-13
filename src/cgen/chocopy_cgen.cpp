@@ -530,14 +530,32 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             auto ptr = ops[0];
             assert(dynamic_cast<ArrayType*>(ptr->get_type())  && ((ArrayType*)ptr->get_type())->get_num_of_elements() == -1);
             auto inner_type = ((ArrayType*)ptr->get_type())->get_element_type();
-            assert(dynamic_cast<ConstantInt*>(ops[1]));
-            auto idx = ((ConstantInt*)ops[1])->get_value();
             if (dynamic_cast<Class*>(inner_type) || inner_type->print().ends_with("$dispatchTable_type")) {
                 // it seems that every attribute is 4 bytes
+                assert(dynamic_cast<ConstantInt*>(ops[1]));
+                auto idx = ((ConstantInt*)ops[1])->get_value();
                 asm_code += valueToReg(ptr, 5);
                 asm_code += fmt::format("  addi t0, t0, {}\n", idx * 4);
                 asm_code += regToStack(5, gep->get_name());
+            } else if (inner_type->print() == "%$union.conslist") {
+                asm_code += valueToReg(ptr, 5);
+                asm_code += valueToReg(ops[1], 6);
+                asm_code += "  slli t1, t1, 2\n";
+                asm_code += "  add t0, t0, t1\n";
+                asm_code += regToStack(5, gep->get_name());
+            } else if (auto i = dynamic_cast<IntegerType*>(inner_type)) {
+                asm_code += valueToReg(ptr, 5);
+                asm_code += valueToReg(ops[1], 6);
+                if (i->get_num_bits() == 32 || i->get_num_bits() == 1) {
+                    asm_code += "  slli t1, t1, 2\n";
+                } else {
+                    assert(i->get_num_bits() == 8);
+                }
+                asm_code += "  add t0, t0, t1\n";
+                asm_code += regToStack(5, gep->get_name());
+
             } else {
+                std::cerr << inner_type->print() << std::endl;
                 assert(0 && "not implemented");
             }
             break;
