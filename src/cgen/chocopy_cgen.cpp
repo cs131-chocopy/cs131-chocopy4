@@ -448,9 +448,19 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::And: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  and t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Or: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  or t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Alloca: {
