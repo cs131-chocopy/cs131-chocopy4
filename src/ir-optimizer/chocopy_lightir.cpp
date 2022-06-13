@@ -407,7 +407,6 @@ void LightWalker::visit(parser::Program &node) {
     auto baseBB = BasicBlock::create(&*module, "", curr_func);
     base_layer.emplace_back(baseBB);
     builder->set_insert_point(baseBB);
-    builder->create_asm("addi fp, sp, 0");
     scope.push("main", curr_func);
 
     auto ptr_list_type = ArrayType::get(list_class);
