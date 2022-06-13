@@ -1580,10 +1580,10 @@ void LightWalker::visit(parser::IndexExpr &node)
 {
     bool is_get_lvalue=get_lvalue;
     get_lvalue=false;
-    node.index->accept(*this);
-    auto idx=visitor_return_value;
     node.list->accept(*this);
     auto list=visitor_return_value;
+    node.index->accept(*this);
+    auto idx=visitor_return_value;
 
     auto noconv_fun = scope.find_in_global("noconv");
     auto null= builder->create_call(noconv_fun,vector<Value*>());
