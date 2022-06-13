@@ -26,7 +26,7 @@ namespace cgen {
 int getTypeSizeInBytes(Type *type) {
     if (dynamic_cast<ArrayType*>(type)) {
         return 4;
-    } else if (type->is_integer_type()) {
+    } else if (type->is_integer_type() || type->is_bool_type()) {
         return 4; // bool and int are 4 bytes
     } else if (auto class_ = dynamic_cast<Class*>(type); class_ && class_->anon_) {
         int ret = 0;
