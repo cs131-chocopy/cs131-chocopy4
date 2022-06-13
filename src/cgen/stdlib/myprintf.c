@@ -126,7 +126,7 @@ int myprintf(char *format, int varg) {
             if (*format == 's') {
                 /** check the first letter is char or the type is char* */
                 bool is_str = false;
-                for (int i = 0; i < 1; i++) {
+                for (int i = 0; i < 3; i++) {
                     if(i==0){
                         is_str=isascii(*((char *)varg + i));
                     }

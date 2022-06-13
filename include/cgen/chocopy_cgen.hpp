@@ -89,7 +89,6 @@ public:
     [[nodiscard]] string regToStack(int reg, string name);
     string virtualRegMove(vector<Value *> target, vector<Value *> source, int sp_ofs = 0);
     string generateVext(int vlen, int elen, lightir::VExtInst::vv_type type, const InstGen::Reg &len);
-    string generateGOT();
     string generateGlobalVarsCode();
     string generateInitializerCode(Constant *init);
     pair<int, bool> getConstIntVal(Value *val);

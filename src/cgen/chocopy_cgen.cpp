@@ -204,7 +204,6 @@ string CodeGen::generateModuleCode() {
     for (auto &classInfo : this->module->get_class()) {
         asm_code += backend->emit_prototype(*classInfo);
     }
-    asm_code += CodeGen::generateGOT();
     asm_code += generateGlobalVarsCode();
 
     asm_code += ".text\n";
@@ -473,16 +472,24 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Load: {
+            assert(ops.size() == 1);
             string op = ops[0]->get_name();
-            if (alloca_mapping.contains(op)) {
-                asm_code += fmt::format("  lw t1, {}(fp)\n", alloca_mapping.at(op));
-            } else if (GOT.contains(op)) {
-                asm_code += fmt::format("  lui t1, %hi({})\n  lw t1, %lo({})(t1)\n", op, op);
-            } else {
+            if (inst->get_type()->print() == "i8") {
                 asm_code += valueToReg(ops[0], 5);
-                asm_code += fmt::format("  lw t1, 0(t0)\n");
+                asm_code += "  lbu t1, 0(t0)\n";
+                asm_code += "  andi t1, t1, 255	\n";
+                asm_code += regToStack(6, inst->get_name());
+            } else {
+                if (alloca_mapping.contains(op)) {
+                    asm_code += fmt::format("  lw t1, {}(fp)\n", alloca_mapping.at(op));
+                } else if (GOT.contains(op)) {
+                    asm_code += fmt::format("  lui t1, %hi({})\n  lw t1, %lo({})(t1)\n", op, op);
+                } else {
+                    asm_code += valueToReg(ops[0], 5);
+                    asm_code += fmt::format("  lw t1, 0(t0)\n");
+                }
+                asm_code += regToStack(6, inst->get_name());
             }
-            asm_code += regToStack(6, inst->get_name());
             break;
         }
         case lightir::Instruction::Store: {
@@ -661,25 +668,16 @@ string CodeGen::generateFunctionCall(Instruction *inst, const string &call_inst,
     }
     return asm_code;
 }
-string CodeGen::generateGOT() {
-    string asm_code;
-    this->GOT.clear();
-    for (auto &global_var : this->module->get_global_variable()) {
-        if (global_var->init_val_ != nullptr) {
-            int count = this->GOT.size();
-            if (!GOT.count(global_var->get_name())) {
-                this->GOT[global_var->get_name()] = count;
-                asm_code += fmt::format(".globl {}\n", global_var->get_name());
-            }
-        }
-    }
-    LOG(INFO) << asm_code;
-    return asm_code;
-}
 string CodeGen::generateGlobalVarsCode() {
+    GOT.clear();
     string asm_code;
     for (auto &global_var : this->module->get_global_variable()) {
         if (global_var->init_val_ != nullptr) {
+            GOT[global_var->get_name()] = 1;
+            asm_code += fmt::format(".globl {}\n", global_var->get_name());
+            if (dynamic_cast<ConstantStr *>(global_var->init_val_)) {
+                asm_code += ".p2align 2\n";
+            }
             asm_code += global_var->get_name() + ":\n";
             if (reinterpret_cast<Type *>(!global_var->get_type()->get_ptr_element_type()) ==
                 global_var->get_operands().at(0)->get_type()) {
@@ -703,17 +701,61 @@ string CodeGen::generateInitializerCode(Constant *init) {
             asm_code += CodeGen::generateInitializerCode(array_init->get_element_value(i));
         }
     } else if (str_init) {
-        //        CodeGen::generate
         string str = str_init->get_value();
+        string str_label = fmt::format(".Lstr.{}", init->get_name());
         asm_code += "  .word " + std::to_string(str_init->get_type()->get_type_id()) + "\n";
         size_t objsize = str.size() / 4 + 5;
         asm_code += "  .word " + std::to_string(objsize) += "\n";
         asm_code += "  .word $str$dispatchTable\n";
         asm_code += "  .word " + std::to_string(str.size()) += "\n";
-        asm_code += "  .string \"" + str += "\"\n";
-        asm_code += "  .align 2\n";
+        asm_code += "  .word " + str_label += "\n";
+        asm_code += fmt::format("{}:\n", str_label);
+        asm_code += "  .asciz \"";
+        for (char c : str) {
+            switch (c) {
+                case 0: {
+                    asm_code += "\\0";
+                    break;
+                }
+                case 8: {
+                    asm_code += "\\b";
+                    break;
+                }
+                case 9: {
+                    asm_code += "\\t";
+                    break;
+                }
+                case 10: {
+                    asm_code += "\\n";
+                    break;
+                }
+                case 12: {
+                    asm_code += "\\f";
+                    break;
+                }
+                case 13: {
+                    asm_code += "\\r";
+                    break;
+                }
+                case '\"': {
+                    asm_code += "\\\"";
+                    break;
+                }
+                case '\\': {
+                    asm_code += "\\\\";
+                    break;
+                }
+                default: {
+                    if (c < ' ') {
+                        asm_code += fmt::format("\\{0:03o}", (int)c);
+                    } else {
+                        asm_code += c;
+                    }
+                }
+            }
+        }
+        asm_code += "\"\n";
         asm_code += "\n";
-
     } else {
         auto val = CodeGen::getConstIntVal(init);
         if (!val.second) {

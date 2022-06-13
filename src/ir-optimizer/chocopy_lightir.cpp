@@ -60,6 +60,8 @@ bool is_global_conslist = false;
 /** Function that is being built */
 Function *curr_func = nullptr;
 
+bool enable_str_for = true;
+
 /** Use the symbol table to generate the type id */
 int LightWalker::get_next_type_id() { return next_type_id++; }
 
@@ -410,61 +412,62 @@ void LightWalker::visit(parser::Program &node) {
     scope.push("main", curr_func);
 
     auto ptr_list_type = ArrayType::get(list_class);
-/*FIXME: disable str-for temporarily.
-    for(int i=0; i<=126; i++) {
-            string s("1");
-            s[0]=i;
-            int id=get_const_type_id();
-            auto t=GlobalVariable::create(
-                "const_"+std::to_string(id),
-                module.get(),
-                ConstantStr::get(s,id,module.get())
-            );
-            //scope.push_in_global("!char_set_"+std::to_string(i), t);
-            auto ptr_type = ArrayType::get(dynamic_cast<Class*>(
-                scope.find_in_global("virtual_str_1145141919810")));
-            t->set_type(ptr_type);
-            auto p = GlobalVariable::create(
-                "char_list_const"+std::to_string(id),
-                module.get(),
-                ptr_type,
-                false,
-                ConstantNull::get(ptr_type)
-            );
-            //std::cerr<<p->get_type()->print()<<"\n";
-            builder->create_store(t, p);
-            p->set_type(ArrayType::get(p->get_type()));
-            char_list.push_back(p);
-            //scope.push_in_global(node.var->identifier->name,p);
-    }
-    if (true) {
-        Instruction *char_table;
-        vector<Value*> conslist_para;
-        int tt=126+1;
-        conslist_para.push_back(CONST(tt));
-        for(int i=0; i<tt; i++) {
-            //auto t3=builder.create_
-            auto p=char_list[i];
-            //p->set_type(ArrayType::get(p->get_type()));
-            auto t = builder->create_bitcast(p, ArrayType::get(union_conslist));
-            auto t2 = builder->create_load(t);
-            conslist_para.push_back(t2);
-            //p->set_type(dynamic_cast<ArrayType*>(p->get_type())->get_element_type());
+    if (enable_str_for) {
+        for(int i=0; i<=126; i++) {
+                string s("1");
+                s[0]=i;
+                int id=get_const_type_id();
+                auto t=GlobalVariable::create(
+                    "const_"+std::to_string(id),
+                    module.get(),
+                    ConstantStr::get(s,id,module.get())
+                );
+                //scope.push_in_global("!char_set_"+std::to_string(i), t);
+                auto ptr_type = ArrayType::get(dynamic_cast<Class*>(
+                    scope.find_in_global("virtual_str_1145141919810")));
+                t->set_type(ptr_type);
+                auto p = GlobalVariable::create(
+                    "char_list_const"+std::to_string(id),
+                    module.get(),
+                    ptr_type,
+                    false,
+                    ConstantNull::get(ptr_type)
+                );
+                //std::cerr<<p->get_type()->print()<<"\n";
+                builder->create_store(t, p);
+                p->set_type(ArrayType::get(p->get_type()));
+                char_list.push_back(p);
+                //scope.push_in_global(node.var->identifier->name,p);
         }
-        char_table=builder->create_call(conslist_fun,conslist_para);
-        char_table=builder->create_bitcast(char_table, ArrayType::get(ArrayType::get(list_class)));
-        char_table = builder->create_load(char_table);
+        if (true) {
+            Instruction *char_table;
+            vector<Value*> conslist_para;
+            int tt=126+1;
+            conslist_para.push_back(CONST(tt));
+            for(int i=0; i<tt; i++) {
+                //auto t3=builder.create_
+                auto p=char_list[i];
+                //p->set_type(ArrayType::get(p->get_type()));
+                auto t = builder->create_bitcast(p, ArrayType::get(union_conslist));
+                auto t2 = builder->create_load(t);
+                conslist_para.push_back(t2);
+                //p->set_type(dynamic_cast<ArrayType*>(p->get_type())->get_element_type());
+            }
+            char_table=builder->create_call(conslist_fun,conslist_para);
+            char_table=builder->create_bitcast(char_table, ArrayType::get(ArrayType::get(list_class)));
+            char_table = builder->create_load(char_table);
 
-        auto g_char_table=GlobalVariable::create(
-            "global_char_table",
-            module.get(),
-            ptr_list_type,
-            false,
-            ConstantNull::get(ptr_list_type)
-        );
-        builder->create_store(char_table, g_char_table);
-        scope.push_in_global("global_char_table", g_char_table);
-    }*/
+            auto g_char_table=GlobalVariable::create(
+                "global_char_table",
+                module.get(),
+                ptr_list_type,
+                false,
+                ConstantNull::get(ptr_list_type)
+            );
+            builder->create_store(char_table, g_char_table);
+            scope.push_in_global("global_char_table", g_char_table);
+        }
+    }
 
     invalid_value=GlobalVariable::create(
         "invalid_list_pointer",
@@ -1702,6 +1705,8 @@ int main(int argc, char *argv[]) {
     bool run = false;
     bool assem = false;
 
+    lightir::enable_str_for=true;
+
     for (int i = 1; i < argc; ++i) {
         if (argv[i] == "-h"s || argv[i] == "--help"s) {
             print_help(argv[0]);
@@ -1723,6 +1728,13 @@ int main(int argc, char *argv[]) {
         } else if (argv[i] == "-pass"s) {
             passes.push_back(argv[i + 1]);
             i += 1;
+        } else if (argv[i] == "-strfor"s) {
+            if (argv[i+1]=="true") {
+                lightir::enable_str_for=true;
+            } else {
+                lightir::enable_str_for=false;
+            }
+            i+=1;
         } else {
             if (input_path.empty()) {
                 input_path = argv[i];
