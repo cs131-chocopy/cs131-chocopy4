@@ -255,15 +255,17 @@ string CodeGen::generateFunctionCode(Function *func) {
     register_mapping.clear();
     stack_mapping.clear();
     alloca_mapping.clear();
-    int offset = -stack_size-4;
+    int offset = -stack_size;
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
             if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
-                offset += getTypeSizeInBytes(alloca->get_alloca_type());
                 alloca_mapping[alloca->get_name()] = offset;
+                offset += getTypeSizeInBytes(alloca->get_alloca_type());
+                // std::cerr << "Alloca " << alloca->get_name() << ": " << alloca_mapping[alloca->get_name()] << std::endl;
             } else {
-                offset += 4;
                 stack_mapping[i->get_name()] = offset;
+                offset += 4;
+                // std::cerr << "Stack " << i->get_name() << ": " << stack_mapping[i->get_name()] << std::endl;
             }
 
             // create lw for phi nodes at the end of basic block
