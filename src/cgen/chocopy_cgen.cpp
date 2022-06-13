@@ -453,6 +453,16 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::ICmp: {
+            auto op = ((CmpInst*)inst)->get_cmp_op();
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            if (op == CmpInst::EQ) {
+                asm_code += fmt::format("  xor t0, t0, t1\n");
+                asm_code += fmt::format("  seqz t0, t0\n");
+            } else {
+                assert(0);
+            }
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::PHI: {
