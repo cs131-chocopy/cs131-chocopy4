@@ -1,9 +1,11 @@
 #include "BasicBlock.hpp"
 #include "Constant.hpp"
+#include "Function.hpp"
 #include "GlobalVariable.hpp"
 #include "InstGen.hpp"
 #include "Module.hpp"
 #include "Type.hpp"
+#include "Value.hpp"
 #include <cassert>
 #include <chocopy_cgen.hpp>
 #include <chocopy_lightir.hpp>
@@ -366,6 +368,7 @@ string CodeGen::generateBasicBlockPostCode(BasicBlock *bb) {
     return asm_code;
 }
 string CodeGen::generateInstructionCode(Instruction *inst) {
+    // std::cerr << inst->print() << std::endl;
     std::string asm_code;
     auto &ops = inst->get_operands();
     // TODO: generate instruction code
@@ -469,8 +472,14 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Call: {
-            auto func_name = inst->get_operands()[0]->get_name();
-            asm_code += generateFunctionCall(inst, func_name, inst->get_operands(), 10);
+            if (dynamic_cast<Function*>(ops[0])) {
+                auto func_name = ops[0]->get_name();
+                asm_code += generateFunctionCall(inst, fmt::format("  call {}\n", func_name), ops, 10);
+            } else {
+                assert(ops[0]->print() != "");
+                asm_code += valueToReg(ops[0], 6);
+                asm_code += generateFunctionCall(inst, fmt::format("  jalr t1\n"), ops, 10);
+            }
             asm_code += regToStack(10, inst->get_name());
             break;
         }
@@ -481,7 +490,7 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             auto inner_type = ((ArrayType*)ptr->get_type())->get_element_type();
             assert(dynamic_cast<ConstantInt*>(ops[1]));
             auto idx = ((ConstantInt*)ops[1])->get_value();
-            if (dynamic_cast<Class*>(inner_type)) {
+            if (dynamic_cast<Class*>(inner_type) || inner_type->print().ends_with("$dispatchTable_type")) {
                 // it seems that every attribute is 4 bytes
                 asm_code += valueToReg(ptr, 5);
                 asm_code += fmt::format("  addi t0, t0, {}\n", idx * 4);
@@ -520,6 +529,8 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
         case lightir::Instruction::ACCSTART:
         case lightir::Instruction::ACCEND:;
     }
+    // std::cerr << asm_code << std::endl;
+    // std::cerr << "---" << std::endl;
     return asm_code;
 }
 string CodeGen::getLabelName(BasicBlock *bb) { return "." + bb->get_parent()->get_name() + "_" + bb->get_name(); }
@@ -527,7 +538,7 @@ string CodeGen::getLabelName(Function *func, int type) {
     const std::vector<std::string> name_list = {"pre", "post"};
     return "." + func->get_name() + "_" + name_list.at(type);
 }
-string CodeGen::generateFunctionCall(Instruction *inst, const string &func_name, vector<Value *> ops, int return_reg,
+string CodeGen::generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops, int return_reg,
                                      int sp_ofs) {
     // ops[0] is the function
     std::string asm_code;
@@ -548,7 +559,7 @@ string CodeGen::generateFunctionCall(Instruction *inst, const string &func_name,
         }
     }
     
-    asm_code += fmt::format("  call {}\n", func_name);
+    asm_code += call_inst;
     
     if (sp_delta != 0) {
         asm_code += fmt::format("  addi sp, sp, {}\n", +sp_delta);

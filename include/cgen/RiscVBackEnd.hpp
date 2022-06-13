@@ -88,10 +88,10 @@ public:
      *  defined by CLASSINFO. */
     string emit_prototype(Class classInfo) {
         string asm_code;
-        asm_code += emit_global_label(classInfo.prototype_label_);
-        asm_code += classInfo.prototype_label_ + ":\n";
         if (classInfo.is_class_anon()) {
         } else {
+            asm_code += emit_global_label(classInfo.prototype_label_);
+            asm_code += classInfo.prototype_label_ + ":\n";
             asm_code += fmt::format("  .word {}\n", classInfo.type_tag_);
             asm_code += fmt::format("  .word {}\n", 3 + classInfo.get_attribute()->size());
             if (classInfo.dispatch_table_label_ == "") {
