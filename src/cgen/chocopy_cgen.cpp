@@ -398,24 +398,53 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Neg: {
+            assert(ops.size() == 1);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += "  neg t0, t0\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Not: {
             break;
         }
         case lightir::Instruction::Add: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  add t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Sub: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  sub t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Mul: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  mul t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Div: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  div t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Rem: {
+            assert(ops.size() == 2);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += valueToReg(ops[1], 6);
+            asm_code += "  rem t0, t0, t1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::And: {
@@ -462,6 +491,19 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             if (op == CmpInst::EQ) {
                 asm_code += fmt::format("  xor t0, t0, t1\n");
                 asm_code += fmt::format("  seqz t0, t0\n");
+            } else if (op == CmpInst::NE) {
+                asm_code += fmt::format("  xor t0, t0, t1\n");
+                asm_code += fmt::format("  snez t0, t0\n");
+            } else if (op == CmpInst::LT) {
+                asm_code += fmt::format("  slt t0, t0, t1\n");
+            } else if (op == CmpInst::LE) {
+                asm_code += fmt::format("  slt t0, t1, t0\n");
+                asm_code += fmt::format("  xori t0, t0, 1\n");
+            } else if (op == CmpInst::GT) {
+                asm_code += fmt::format("  slt t0, t1, t0\n");
+            } else if (op == CmpInst::GE) {
+                asm_code += fmt::format("  slt t0, t0, t1\n");
+                asm_code += fmt::format("  xori t0, t0, 1\n");
             } else {
                 assert(0);
             }
@@ -501,6 +543,9 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::ZExt: {
+            assert(ops.size() == 1);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::InElem: {
