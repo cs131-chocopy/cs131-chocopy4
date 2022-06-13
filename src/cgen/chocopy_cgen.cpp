@@ -129,6 +129,8 @@ string CodeGen::valueToReg(Value *v, int reg) {
         return fmt::format("  li {}, {}\n", reg_name[reg], c->get_value());
     } else if (auto a = dynamic_cast<AllocaInst*>(v)) {
         return fmt::format("  addi {}, fp, {}\n", reg_name[reg], alloca_mapping[a->get_name()]);
+    } else if (auto cls = dynamic_cast<Class*>(v); cls) {
+        return fmt::format("  la {}, {}\n", reg_name[reg], cls->prototype_label_);
     } else if (auto name = v->get_name(); GOT.contains(name)) {
         return fmt::format("  la {}, {}\n", reg_name[reg], name);
     } else if (register_mapping.contains(v->get_name())) {
