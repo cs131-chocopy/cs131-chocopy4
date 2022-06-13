@@ -1151,6 +1151,8 @@ void LightWalker::visit(parser::FuncDef &node) {
         builder->create_store(new Value(arg_type, "arg" + std::to_string(arg_num)),alloca);
         scope.push(arg->identifier->name, alloca);
     }
+    Instruction* temp_conslist = builder->create_alloca(union_conslist);
+    scope.push("temp_conslist", temp_conslist);
 
     for (auto decl : *node.declarations) {
         decl->accept(*this);
