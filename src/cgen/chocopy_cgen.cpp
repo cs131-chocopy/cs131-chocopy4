@@ -405,6 +405,10 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Not: {
+            assert(ops.size() == 1);
+            asm_code += valueToReg(ops[0], 5);
+            asm_code += "  xori t0, t0, 1\n";
+            asm_code += regToStack(5, inst->get_name());
             break;
         }
         case lightir::Instruction::Add: {
