@@ -490,12 +490,15 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Shl: {
+            assert(0);
             break;
         }
         case lightir::Instruction::AShr: {
+            assert(0);
             break;
         }
         case lightir::Instruction::LShr:{
+            assert(0);
             break;
         }
         case lightir::Instruction::ICmp: {
@@ -581,9 +584,11 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::InElem: {
+            assert(0);
             break;
         }
         case lightir::Instruction::ExElem: {
+            assert(0);
             break;
         }
         case lightir::Instruction::BitCast: {
@@ -592,9 +597,11 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             break;
         }
         case lightir::Instruction::Trunc: {
+            assert(0);
             break;
         }
         case lightir::Instruction::VExt: {
+            assert(0);
             break;
         }
         case lightir::Instruction::ASM: {
@@ -603,8 +610,14 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             asm_code += "  " + asm_ + "\n";
             break;
         }
-        case lightir::Instruction::ACCSTART:
-        case lightir::Instruction::ACCEND:;
+        case lightir::Instruction::ACCSTART: {
+            assert(0);
+            break;
+        }
+        case lightir::Instruction::ACCEND: {
+            assert(0);
+            break;
+        }
     }
     // std::cerr << asm_code << std::endl;
     // std::cerr << "---" << std::endl;
