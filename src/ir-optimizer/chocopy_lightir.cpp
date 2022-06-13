@@ -1541,7 +1541,10 @@ void LightWalker::visit(parser::VarDef & node)
             builder->create_store(init_val, t);
             scope.push(node.var->identifier->name, t);
         } else if (auto list_type=dynamic_cast<parser::ListType*>(node.var->type)) {
-            // TODO: local list
+            auto ptr_list_type = ArrayType::get(list_class);
+            auto t = builder->create_alloca(ptr_list_type);
+            builder->create_store(ConstantNull::get(ptr_list_type), t);
+            scope.push(node.var->identifier->name, t);
         }
     }
 }
