@@ -58,6 +58,7 @@ private:
     bool debug;
     RiscVBackEnd *backend;
     BasicBlock* current_basic_block;
+    Function* current_function;
 
 public:
     explicit CodeGen(shared_ptr<Module> module);

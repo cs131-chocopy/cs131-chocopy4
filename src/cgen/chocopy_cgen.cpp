@@ -215,6 +215,7 @@ string CodeGen::generateFunctionCode(Function *func) {
     // 注意这里没有保存 a0, a1, a2, a3, a4, a5, a6, a7
     // 因为函数生成 LLVM IR 时会给每个参数 %opx = alloca i32; store %arg, ptr %opx
     // 所以他们只会在函数最初 alloca-store 时被使用
+    current_function = func;
     string asm_code;
     asm_code += fmt::format(".globl {}\n{}:\n", func->get_name(), func->get_name());
 
@@ -282,6 +283,12 @@ string CodeGen::generateFunctionCode(Function *func) {
         asm_code += fmt::format("{}:\n", getLabelName(b), b->get_name());
         asm_code += generateBasicBlockCode(b);
     }
+
+    asm_code += fmt::format("{}$return:\n", func->get_name());
+    asm_code += fmt::format("  lw ra, {}(sp)\n", stack_size - 4);
+    asm_code += fmt::format("  lw fp, {}(sp)\n", stack_size - 8);
+    asm_code += fmt::format("  addi sp, sp, {}\n", stack_size);
+    asm_code += fmt::format("  ret\n");
     return asm_code;
 }
 
@@ -289,9 +296,6 @@ CodeGen::CodeGen(shared_ptr<Module> module) : module(move(module)), backend(new 
 
 [[nodiscard]]  string CodeGen::generateFunctionExitCode() {
     std::string asm_code;
-    asm_code += fmt::format("  lw ra, {}(sp)\n", stack_size - 4);
-    asm_code += fmt::format("  lw fp, {}(sp)\n", stack_size - 8);
-    asm_code += fmt::format("  addi sp, sp, {}\n", stack_size);
     return asm_code;
 }
 string CodeGen::generateBasicBlockCode(BasicBlock *bb) {
@@ -325,8 +329,7 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             if (ops.size() == 1) {
                 asm_code += valueToReg(ops[0], 10);
             }
-            asm_code += generateFunctionExitCode();
-            asm_code += "  ret\n";
+            asm_code += fmt::format("  j {}$return\n", current_function->get_name());
             break;
         }
         case lightir::Instruction::Br: {
