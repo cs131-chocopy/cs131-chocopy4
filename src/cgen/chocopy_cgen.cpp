@@ -194,12 +194,6 @@ string CodeGen::generateModuleCode() {
     asm_code += backend->defineSym("error_oom", backend->ERROR_OOM);
     asm_code += backend->defineSym("error_nyi", backend->ERROR_NYI);
 #endif
-
-    // FIXME: I don't know what the code below does.
-    // asm_code = replaceStringLiteral(asm_code);
-
-    asm_code += generateHeaderCode();
-
     asm_code += ".data\n";
     for (auto &classInfo : this->module->get_class()) {
         asm_code += backend->emit_prototype(*classInfo);
@@ -213,20 +207,7 @@ string CodeGen::generateModuleCode() {
             asm_code += CodeGen::generateFunctionCode(func);
         }
     }
-
-    // FIXME: I don't know what the code below does.
-    // backend->emit_prototype 已经生成 $object$prototype, $object$dispatchTable
-    // 不知道为什么这里要重新生成
-    // asm_code += backend->start_code();
-    // asm_code += generateClassCode();
-
-    asm_code += generateFooterCode();
-
     return asm_code;
-}
-
-std::map<Value *, int> CodeGen::regAlloc() {
-    // TODO: regAlloc algorithm
 }
 
 string CodeGen::generateFunctionCode(Function *func) {
@@ -304,47 +285,13 @@ string CodeGen::generateFunctionCode(Function *func) {
     return asm_code;
 }
 
-void CodeGen::allocateStackSpace(Function *func) {
-    // maybe deprecated
-}
-
 CodeGen::CodeGen(shared_ptr<Module> module) : module(move(module)), backend(new RiscVBackEnd()) {}
 
-string CodeGen::generateFunctionEntryCode(Function *func) {
-    string asm_code;
-    asm_code += CodeGen::getLabelName(func, 0) + ":";
-    asm_code += CodeGen::comment("function preprocess");
-    // maybe deprecated
-    return asm_code;
-}
 [[nodiscard]]  string CodeGen::generateFunctionExitCode() {
     std::string asm_code;
     asm_code += fmt::format("  lw ra, {}(sp)\n", stack_size - 4);
     asm_code += fmt::format("  lw fp, {}(sp)\n", stack_size - 8);
     asm_code += fmt::format("  addi sp, sp, {}\n", stack_size);
-    return asm_code;
-}
-
-string CodeGen::generateClassCode() {
-    string class_asm;
-    // maybe deprecated
-    return class_asm;
-}
-
-string CodeGen::generateHeaderCode() {
-    string asm_code;
-    // TODO: generate header code
-    return asm_code;
-}
-string CodeGen::generateFooterCode() {
-    string asm_code;
-    // TODO: generate footer code
-    return asm_code;
-}
-string CodeGen::generateFunctionPostCode(Function *func) {
-    std::string asm_code;
-    auto tmp_asm_code = CodeGen::getLabelName(func, 1) + ":";
-    asm_code += CodeGen::comment(tmp_asm_code, "function postcode");
     return asm_code;
 }
 string CodeGen::generateBasicBlockCode(BasicBlock *bb) {
@@ -372,7 +319,6 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
     // std::cerr << inst->print() << std::endl;
     std::string asm_code;
     auto &ops = inst->get_operands();
-    // TODO: generate instruction code
     switch (inst->get_instr_type()) {
         case lightir::Instruction::Ret: {
             assert(ops.size() == 0 || ops.size() == 1);
@@ -398,73 +344,39 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             }
             break;
         }
-        case lightir::Instruction::Neg: {
-            assert(ops.size() == 1);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += "  neg t0, t0\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
+        case lightir::Instruction::Neg:
         case lightir::Instruction::Not: {
             assert(ops.size() == 1);
             asm_code += valueToReg(ops[0], 5);
-            asm_code += "  xori t0, t0, 1\n";
+            if (inst->get_instr_type() == lightir::Instruction::Not)
+                asm_code += "  xori t0, t0, 1\n";
+            else
+                asm_code += "  neg t0, t0\n";
             asm_code += regToStack(5, inst->get_name());
             break;
         }
-        case lightir::Instruction::Add: {
-            assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += "  add t0, t0, t1\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
-        case lightir::Instruction::Sub: {
-            assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += "  sub t0, t0, t1\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
-        case lightir::Instruction::Mul: {
-            assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += "  mul t0, t0, t1\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
-        case lightir::Instruction::Div: {
-            assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += "  div t0, t0, t1\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
-        case lightir::Instruction::Rem: {
-            assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += "  rem t0, t0, t1\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
-        case lightir::Instruction::And: {
-            assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += "  and t0, t0, t1\n";
-            asm_code += regToStack(5, inst->get_name());
-            break;
-        }
+        case lightir::Instruction::Add:
+        case lightir::Instruction::Sub:
+        case lightir::Instruction::Mul:
+        case lightir::Instruction::Div:
+        case lightir::Instruction::Rem:
+        case lightir::Instruction::And:
         case lightir::Instruction::Or: {
+            char const * asm_inst_name;
+            switch (inst->get_instr_type()) {
+                case lightir::Instruction::Add: asm_inst_name = "add"; break;
+                case lightir::Instruction::Sub: asm_inst_name = "sub"; break;
+                case lightir::Instruction::Mul: asm_inst_name = "mul"; break;
+                case lightir::Instruction::Div: asm_inst_name = "div"; break;
+                case lightir::Instruction::Rem: asm_inst_name = "rem"; break;
+                case lightir::Instruction::And: asm_inst_name = "and"; break;
+                case lightir::Instruction::Or: asm_inst_name = "or"; break;
+                default: assert(0);
+            }
             assert(ops.size() == 2);
             asm_code += valueToReg(ops[0], 5);
             asm_code += valueToReg(ops[1], 6);
-            asm_code += "  or t0, t0, t1\n";
+            asm_code += fmt::format("  {} t0, t0, t1\n", asm_inst_name);
             asm_code += regToStack(5, inst->get_name());
             break;
         }
@@ -496,18 +408,6 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             asm_code += valueToReg(ops[0],  5);
             asm_code += valueToReg(ops[1], 6);
             asm_code += fmt::format("  sw t0, 0(t1)\n");
-            break;
-        }
-        case lightir::Instruction::Shl: {
-            assert(0);
-            break;
-        }
-        case lightir::Instruction::AShr: {
-            assert(0);
-            break;
-        }
-        case lightir::Instruction::LShr:{
-            assert(0);
             break;
         }
         case lightir::Instruction::ICmp: {
@@ -592,25 +492,9 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             asm_code += regToStack(5, inst->get_name());
             break;
         }
-        case lightir::Instruction::InElem: {
-            assert(0);
-            break;
-        }
-        case lightir::Instruction::ExElem: {
-            assert(0);
-            break;
-        }
         case lightir::Instruction::BitCast: {
             asm_code += valueToReg(ops[0], 5);
             asm_code += regToStack(5, inst->get_name());
-            break;
-        }
-        case lightir::Instruction::Trunc: {
-            assert(0);
-            break;
-        }
-        case lightir::Instruction::VExt: {
-            assert(0);
             break;
         }
         case lightir::Instruction::ASM: {
@@ -619,10 +503,14 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
             asm_code += "  " + asm_ + "\n";
             break;
         }
-        case lightir::Instruction::ACCSTART: {
-            assert(0);
-            break;
-        }
+        case lightir::Instruction::InElem:
+        case lightir::Instruction::ExElem:
+        case lightir::Instruction::Trunc:
+        case lightir::Instruction::VExt:
+        case lightir::Instruction::Shl:
+        case lightir::Instruction::AShr:
+        case lightir::Instruction::LShr:
+        case lightir::Instruction::ACCSTART:
         case lightir::Instruction::ACCEND: {
             assert(0);
             break;
@@ -693,14 +581,8 @@ string CodeGen::generateGlobalVarsCode() {
 }
 string CodeGen::generateInitializerCode(Constant *init) {
     string asm_code;
-    auto array_init = dynamic_cast<ConstantArray *>(init);
-    auto str_init = dynamic_cast<ConstantStr *>(init);
-    if (array_init) {
-        auto length = dynamic_cast<ArrayType *>(array_init->get_type())->get_num_of_elements();
-        for (int i = 0; i < length; i++) {
-            asm_code += CodeGen::generateInitializerCode(array_init->get_element_value(i));
-        }
-    } else if (str_init) {
+    if (auto str_init = dynamic_cast<ConstantStr *>(init); str_init) {
+        // guarantee the string is the last attribute of any class
         string str = str_init->get_value();
         string str_label = fmt::format(".Lstr.{}", init->get_name());
         asm_code += "  .word " + std::to_string(str_init->get_type()->get_type_id()) + "\n";
@@ -713,44 +595,17 @@ string CodeGen::generateInitializerCode(Constant *init) {
         asm_code += "  .asciz \"";
         for (char c : str) {
             switch (c) {
-                case 0: {
-                    asm_code += "\\0";
-                    break;
-                }
-                case 8: {
-                    asm_code += "\\b";
-                    break;
-                }
-                case 9: {
-                    asm_code += "\\t";
-                    break;
-                }
-                case 10: {
-                    asm_code += "\\n";
-                    break;
-                }
-                case 12: {
-                    asm_code += "\\f";
-                    break;
-                }
-                case 13: {
-                    asm_code += "\\r";
-                    break;
-                }
-                case '\"': {
-                    asm_code += "\\\"";
-                    break;
-                }
-                case '\\': {
-                    asm_code += "\\\\";
-                    break;
-                }
+                case 0: { asm_code += "\\0"; break; }
+                case 8: { asm_code += "\\b"; break; }
+                case 9: { asm_code += "\\t"; break; }
+                case 10: { asm_code += "\\n"; break; }
+                case 12: { asm_code += "\\f"; break; }
+                case 13: { asm_code += "\\r"; break; }
+                case '\"': { asm_code += "\\\""; break; }
+                case '\\': { asm_code += "\\\\"; break; }
                 default: {
-                    if (c < ' ') {
-                        asm_code += fmt::format("\\{0:03o}", (int)c);
-                    } else {
-                        asm_code += c;
-                    }
+                    if (c < ' ') asm_code += fmt::format("\\{0:03o}", (int)c);
+                    else asm_code += c;
                 }
             }
         }
@@ -847,52 +702,11 @@ string CodeGen::comment(const string &t, const string &s) {
     asm_code += fmt::format("{:<42}{:<42}\n", t, fmt::format("# {}", s));
     return asm_code;
 }
-string CodeGen::generateVext(int vlen, int elen, lightir::VExtInst::vv_type type, const InstGen::Reg &len) {
-    static int counter;
-    std::string asm_code;
-    // TODO: generate VextInst
-    switch (type) {
-    case VExtInst::vv_type::VADD:
-    case VExtInst::VLE:
-    case VExtInst::VSETVLI:
-    case VExtInst::VDIV:
-    case VExtInst::VREM:
-    case VExtInst::VMUL:
-    case VExtInst::VSE:;
-    }
-    return asm_code;
-};
-
 RiscVBackEnd::RiscVBackEnd(int vlen, int vlmax) : vlen(vlen), vlmax(64) {
     /** emplace_back vector reg */
     for (int i = 0; i < vlen / word_size / 4; i++)
         reg_name.emplace_back(fmt::format("x{}", i));
 }
-
-string cgen::CodeGen::replaceStringLiteral(const string &str) {
-    const string find_left("STRING[");
-    const string find_right("]");
-    string result(str);
-    size_t find_len;
-    size_t left_pos, right_pos, from = 0;
-    while (string::npos != (left_pos = str.find(find_left, from)) &&
-           string::npos != (right_pos = str.find(find_right, left_pos))) {
-        find_len = right_pos - left_pos - find_left.size();
-        auto const_str = str.substr(left_pos + find_left.size() + 1, find_len - 2);
-        auto const_str_label = this->makeConstStr(const_str);
-        result = replace_all(result, fmt::format("STRING[\"{}\"]", const_str), std::string(const_str_label.get_name()));
-        from = right_pos;
-    }
-    return result;
-}
-
-InstGen::Addr cgen::CodeGen::makeConstStr(const string &str) {
-    auto const_str = lightir::StringType::get(str, module.get());
-    lightir::GlobalVariable::create(fmt::format("const_{}", module->get_global_variable().size()), module.get(),
-                                    const_str, true,
-                                    lightir::ConstantStr::get(str, module->get_global_variable().size(), module.get()));
-    return {fmt::format("const_{}", module->get_global_variable().size() - 1)};
-};
 
 } // namespace cgen
 

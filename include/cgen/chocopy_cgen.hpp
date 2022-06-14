@@ -55,8 +55,6 @@ private:
     map<BasicBlock *, std::vector<std::pair<Value*, int>>> phi_store;
     map<Instruction *, set<Value *>> context_active_vars;
     int stack_size;
-    int spill_cost_total;
-    int color_bonus_total;
     bool debug;
     RiscVBackEnd *backend;
     BasicBlock* current_basic_block;
@@ -68,12 +66,7 @@ public:
 #endif
     string generateModuleCode();
     string generateFunctionCode(Function *func);
-    string generateFunctionEntryCode(Function *func);
     string generateFunctionExitCode();
-    string generateFunctionPostCode(Function *func);
-    string generateHeaderCode();
-    string generateFooterCode();
-    string generateClassCode();
     string generateBasicBlockCode(BasicBlock *bb);
     string generateBasicBlockPostCode(BasicBlock *bb);
     string generateInstructionCode(Instruction *inst);
@@ -81,23 +74,16 @@ public:
     string getLabelName(Function *func, int type);
     string generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops, int return_reg = 0,
                                 int sp_ofs = 0);
-    void allocateStackSpace(Function *func);
     [[nodiscard]] string stackToReg(int offset, int reg);
     [[nodiscard]] string stackToReg(string name, int reg);
     [[nodiscard]] string valueToReg(Value* v, int reg);
     [[nodiscard]] string regToStack(int reg, int offset);
     [[nodiscard]] string regToStack(int reg, string name);
-    string virtualRegMove(vector<Value *> target, vector<Value *> source, int sp_ofs = 0);
-    string generateVext(int vlen, int elen, lightir::VExtInst::vv_type type, const InstGen::Reg &len);
     string generateGlobalVarsCode();
     string generateInitializerCode(Constant *init);
     pair<int, bool> getConstIntVal(Value *val);
     string comment(const string &s);
     string comment(const string &t, const string &s);
-    map<Value *, int> regAlloc();
-    InstGen::Addr makeConstStr(const string &str);
-    string replaceStringLiteral(const string &str);
-    string vv(const InstGen::Reg &len);
 #ifdef LLVM
     llvm::PreservedAnalyses run(llvm::Module &M, llvm::ModuleAnalysisManager &) {
         generateModuleCode(true);

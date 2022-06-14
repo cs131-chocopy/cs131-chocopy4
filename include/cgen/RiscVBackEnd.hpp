@@ -7,7 +7,6 @@
 
 #include "GlobalVariable.hpp"
 #include "InstGen.hpp"
-#include <chocopy_cgen.hpp>
 #include <filesystem>
 #include <fmt/core.h>
 
