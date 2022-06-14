@@ -521,7 +521,15 @@ void LightWalker::visit(parser::Program &node) {
     }
 
     for (auto decl : *node.declarations) {
-        decl->accept(*this);
+        if (auto node = dynamic_cast<parser::VarDef*>(decl); node) {
+            decl->accept(*this);
+        }
+    }
+    for (auto decl : *node.declarations) {
+        if (auto node = dynamic_cast<parser::VarDef*>(decl); node) {
+        } else {
+            decl->accept(*this);
+        }
     }
     for (auto stmt : *node.statements) {
         stmt->accept(*this);
@@ -1112,8 +1120,17 @@ void LightWalker::visit(parser::FuncDef &node) {
     Instruction* temp_conslist = builder->create_alloca(union_conslist);
     scope.push("temp_conslist", temp_conslist);
 
+
     for (auto decl : *node.declarations) {
-        decl->accept(*this);
+        if (auto node = dynamic_cast<parser::VarDef*>(decl); node) {
+            decl->accept(*this);
+        }
+    }
+    for (auto decl : *node.declarations) {
+        if (auto node = dynamic_cast<parser::VarDef*>(decl); node) {
+        } else {
+            decl->accept(*this);
+        }
     }
     for (auto stmt : *node.statements) {
         stmt->accept(*this);
@@ -1438,7 +1455,7 @@ void LightWalker::visit(parser::VarDef & node)
         } else if (node.var->type->kind == "ClassType") {
             const auto& class_name = node.var->type->get_name();
             const auto class_type = dynamic_cast<Class*>(scope.find_in_global(class_name));
-            assert(class_type); // ! will failed in forward declaration
+            assert(class_type);
             const auto var_type = ArrayType::get(class_type);
             const auto init_val = ConstantNull::get(var_type);
             auto t = GlobalVariable::create(
@@ -1494,7 +1511,7 @@ void LightWalker::visit(parser::VarDef & node)
         } else if (node.var->type->kind == "ClassType") {
             const auto& class_name = node.var->type->get_name();
             const auto class_type = dynamic_cast<Class*>(scope.find_in_global(class_name));
-            assert(class_type); // ! will failed in forward declaration
+            assert(class_type);
             const auto var_type = ArrayType::get(class_type);
             const auto init_val = ConstantNull::get(var_type);
             auto t = builder->create_alloca(var_type);
