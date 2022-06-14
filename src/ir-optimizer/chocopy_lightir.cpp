@@ -543,51 +543,6 @@ void LightWalker::visit(parser::Program &node) {
     builder->create_void_ret();
 }
 
-/* The Light IR Your Code Here */
-
-Value *LightWalker::get_conslist(vector<Value *> &object_args, Value *called_initial_object) {
-    is_conslist = dynamic_cast<ArrayType *>(tmp_value->get_type()) &&
-                  dynamic_cast<Class *>(dynamic_cast<ArrayType *>(tmp_value->get_type())->get_element_type());
-
-    if (!(is_conslist && is_global_conslist)) {
-        if (dynamic_cast<ConstantArray *>(tmp_value)) {
-            auto array_ = dynamic_cast<ConstantArray *>(tmp_value)->const_array;
-            Value *first_num = CONST(int(array_.size()));
-            object_args.emplace_back(first_num);
-            for (auto item : array_) {
-                object_args.emplace_back(item);
-            }
-        } else {
-            auto array_ =
-                dynamic_cast<ConstantArray *>(dynamic_cast<GlobalVariable *>(tmp_value)->init_val_)->const_array;
-            Value *first_num = CONST(int(array_.size()));
-            object_args.emplace_back(first_num);
-            Value *array_item;
-            for (int i = 0; i < array_.size(); i++) {
-                array_item = builder->create_gep(tmp_value, CONST(i));
-                array_item = builder->create_bitcast(array_item, ArrayType::get(union_conslist));
-                array_item = builder->create_load(array_item);
-                object_args.emplace_back(array_item);
-            }
-        }
-        return builder->create_call(called_initial_object, object_args);
-
-    } else {
-        return builder->create_call(called_initial_object, {tmp_value}); // here tmp_value is the list literal
-    }
-}
-
-void LightWalker::transfer_conslist(const string &name) {
-    auto val_ = scope.find(name);
-    /** Check whether the list is empty, if empty : z:[int]=None (not initialized)*/
-    auto renamed_ = new List(list_class, {nullptr}, name);
-    auto type_ = dynamic_cast<ConstantArray *>(val_)->get_type();
-    if (type_->is_array_type()) {
-    }
-    scope.remove(name);
-    scope.push(name, renamed_);
-}
-
 void LightWalker::visit(parser::AssignStmt &node) {
     node.value->accept(*this);
     auto v = visitor_return_value;

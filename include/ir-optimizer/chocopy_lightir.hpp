@@ -198,8 +198,6 @@ public:
     int get_next_type_id();
     int get_const_type_id();
     int get_class_id(const string &name) const;
-    void transfer_conslist(const string &name);
-    Value *get_conslist(vector<Value *> &object_args, Value *called_initial_object);
     string get_nested_func_name(semantic::FunctionDefType const * const);
     Type* semantic_type_to_llvm_type(semantic::SymbolType *type);
     bool func_found = false;
