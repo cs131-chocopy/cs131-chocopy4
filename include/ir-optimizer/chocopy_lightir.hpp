@@ -198,7 +198,7 @@ public:
     int get_next_type_id();
     int get_const_type_id();
     int get_class_id(const string &name) const;
-    string get_nested_func_name(semantic::FunctionDefType const * const);
+    string get_nested_func_name(semantic::FunctionDefType const * const, bool);
     Type* semantic_type_to_llvm_type(semantic::SymbolType *type);
     bool func_found = false;
     vector<parser::ClassDef *> *class_stack = new vector<parser::ClassDef *>();
@@ -213,6 +213,7 @@ public:
 
     vector<Value*> char_list; 
 
+    Function *nonlist_fun, *strcat_fun, *concat_fun, *noconv_fun, *streql_fun, *strneql_fun, *makebool_fun, *makeint_fun, *makestr_fun, *alloc_fun, *conslist_fun, *heap_init_fun;
     Type *i32_type,*i1_type,*vstr_type, *ptr_vstr_type;
     Value* invalid_value;
     Value* null;
