@@ -310,10 +310,10 @@ void LightWalker::visit(parser::Program &node) {
     std::vector<Type *> makestr_params;
     makebool_params.emplace_back(BOOL_T);
     makeint_params.emplace_back(INT_T);
-    makestr_params.emplace_back(TyPtrStr);
+    makestr_params.emplace_back(IntegerType::get(8, module.get()));
     auto makebool_type = FunctionType::get(TyPtrBool, makebool_params);
     auto makeint_type = FunctionType::get(TyPtrInt, makeint_params);
-    auto makestr_type = FunctionType::get(TyPtrStr, makestr_params);
+    auto makestr_type = FunctionType::get(ptr_vstr_type, makestr_params);
     makebool_fun = Function::create(makebool_type, "makebool", module.get());
     makeint_fun = Function::create(makeint_type, "makeint", module.get());
     makestr_fun = Function::create(makestr_type, "makestr", module.get());
@@ -396,60 +396,6 @@ void LightWalker::visit(parser::Program &node) {
     scope.push_in_global("$main", curr_func);
 
     auto ptr_list_type = ArrayType::get(list_class);
-    if (enable_str_for) {
-        for(int i=0; i<=126; i++) {
-                string s("1");
-                s[0]=i;
-                int id=get_const_type_id();
-                auto t=GlobalVariable::create(
-                    "const_"+std::to_string(id),
-                    module.get(),
-                    ConstantStr::get(s,id,module.get())
-                );
-                auto ptr_type = ptr_vstr_type;
-                t->set_type(ptr_type);
-                auto p = GlobalVariable::create(
-                    "char_list_const"+std::to_string(id),
-                    module.get(),
-                    ptr_type,
-                    false,
-                    ConstantNull::get(ptr_type)
-                );
-                //std::cerr<<p->get_type()->print()<<"\n";
-                builder->create_store(t, p);
-                p->set_type(ArrayType::get(p->get_type()));
-                char_list.push_back(p);
-                //scope.push_in_global(node.var->identifier->name,p);
-        }
-        if (true) {
-            Instruction *char_table;
-            vector<Value*> conslist_para;
-            int tt=126+1;
-            conslist_para.push_back(CONST(tt));
-            for(int i=0; i<tt; i++) {
-                //auto t3=builder.create_
-                auto p=char_list[i];
-                //p->set_type(ArrayType::get(p->get_type()));
-                auto t = builder->create_bitcast(p, ArrayType::get(union_conslist));
-                auto t2 = builder->create_load(t);
-                conslist_para.push_back(t2);
-                //p->set_type(dynamic_cast<ArrayType*>(p->get_type())->get_element_type());
-            }
-            char_table=builder->create_call(conslist_fun,conslist_para);
-            char_table=builder->create_bitcast(char_table, ArrayType::get(ArrayType::get(list_class)));
-            char_table = builder->create_load(char_table);
-
-            auto g_char_table=GlobalVariable::create(
-                "$global_char_table",
-                module.get(),
-                ptr_list_type,
-                false,
-                ConstantNull::get(ptr_list_type)
-            );
-            builder->create_store(char_table, g_char_table);
-            scope.push_in_global("$global_char_table", g_char_table);
-        }
-    }
 
     invalid_value=GlobalVariable::create(
         "invalid_list_pointer",
@@ -887,11 +833,6 @@ void LightWalker::visit(parser::ExprStmt &node)
 }
 void LightWalker::visit(parser::ForStmt &node) 
 {
-    Instruction* char_table=nullptr;
-    if(node.iterable->inferredType->get_name()=="str") {
-        auto g_char_table=scope.find_in_global("$global_char_table");
-        char_table = builder->create_load(g_char_table);
-    }
     node.iterable->accept(*this);
     auto list = visitor_return_value;
 
@@ -934,15 +875,10 @@ void LightWalker::visit(parser::ForStmt &node)
         str->set_type(ArrayType::get(IntegerType::get(8, module.get())));
         auto p_char = builder->create_gep(str, i);
         auto i_char = builder->create_load(p_char);
-        auto i32_char = builder->create_zext(i_char, IntegerType::get(32,module.get()));
-        auto idx = builder->create_isub(i32_char, CONST(0));
+        vector<Value*> makestr_para;
+        makestr_para.push_back(i_char);
+        auto t7=builder->create_call(makestr_fun,makestr_para);
 
-        auto t2 = builder->create_gep(char_table, CONST(4));
-        t2->set_type(ArrayType::get(ArrayType::get(this->union_conslist)));
-        auto t3=builder->create_load(t2);
-        auto t5 = builder->create_gep(t3, idx);
-        auto t6 = builder->create_bitcast(t5, ArrayType::get(ptr_vstr_type));
-        auto t7 = builder->create_load(t6);
         builder->create_store(t7, it);
 
         for(auto s:*node.body) {
@@ -1547,22 +1483,14 @@ void LightWalker::visit(parser::IndexExpr &node)
     builder->set_insert_point(b_1);
     if (node.list->inferredType->get_name()=="str") {
         assert(!is_get_lvalue);
-        auto g_char_table=scope.find_in_global("$global_char_table");
-        auto char_table = builder->create_load(g_char_table);
         auto p_str = builder->create_gep(list, CONST(4));
         auto str = builder->create_load(p_str);
         str->set_type(ArrayType::get(IntegerType::get(8, module.get())));
         auto p_char = builder->create_gep(str, idx);
         auto i_char = builder->create_load(p_char);
-        auto i32_char = builder->create_zext(i_char, IntegerType::get(32,module.get()));
-        auto idx = builder->create_isub(i32_char, CONST(0));
-
-        auto t2 = builder->create_gep(char_table, CONST(4));
-        t2->set_type(ArrayType::get(ArrayType::get(this->union_conslist)));
-        auto t3=builder->create_load(t2);
-        auto t5 = builder->create_gep(t3, idx);
-        auto t6 = builder->create_bitcast(t5, ArrayType::get(ptr_vstr_type));
-        auto t7 = builder->create_load(t6);
+        vector<Value*> makestr_para;
+        makestr_para.push_back(i_char);
+        auto t7=builder->create_call(makestr_fun,makestr_para);
         visitor_return_value=t7;
     } else {
         Instruction *res=nullptr;

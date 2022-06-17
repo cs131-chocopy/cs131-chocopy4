@@ -467,16 +467,19 @@ makestr:
 addi sp, sp, -8
 sw ra, 8(sp)
 sw a0, 0(sp)
-sw a1, 4(sp)
 la a0, $str$prototype
-jal ra, alloc
+li a1, 22
+jal alloc2
 lw t0, 0(sp)
-lw t1, 4(sp)
-sw t0, 16(a0)
-sw t0, 12(a0)
+li t1, 1
+sw t1, 12(a0)
+add t1, a0, 20
+sw t1, 16(a0)
+sb t0, 20(a0)
 lw ra, 8(sp)
 addi sp, sp, 8
 jr ra
+
 
 .globl noconv
 noconv:

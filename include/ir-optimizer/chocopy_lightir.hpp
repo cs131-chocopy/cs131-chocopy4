@@ -211,8 +211,6 @@ public:
     Type* visitor_return_type = nullptr;
     bool get_lvalue = false; //mark if the visitor is in lvalue context
 
-    vector<Value*> char_list; 
-
     Function *nonlist_fun, *strcat_fun, *concat_fun, *noconv_fun, *streql_fun, *strneql_fun, *makebool_fun, *makeint_fun, *makestr_fun, *alloc_fun, *conslist_fun, *heap_init_fun;
     Type *i32_type,*i1_type,*vstr_type, *ptr_vstr_type;
     Value* invalid_value;
