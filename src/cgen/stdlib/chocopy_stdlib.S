@@ -234,7 +234,7 @@ lw t0, -28(fp) # Get size of object in words
 slli a0, t0, 2
 call sbrk
 lw a1, -4(fp) # a0 is the new object, a1 is the prototype
-lw a2, -28(fp) # object word size
+lw a2, 4(a1) # object word size
 mv a3, a0
 memcpy_cond:
 blez a2, memcpy_end
@@ -465,10 +465,10 @@ jr ra
 makestr:
 # Init for multiple length string literal
 addi sp, sp, -8
-sw ra, 8(sp)
+sw ra, 4(sp)
 sw a0, 0(sp)
 la a0, $str$prototype
-li a1, 22
+li a1, 6
 jal alloc2
 lw t0, 0(sp)
 li t1, 1
@@ -476,7 +476,7 @@ sw t1, 12(a0)
 add t1, a0, 20
 sw t1, 16(a0)
 sb t0, 20(a0)
-lw ra, 8(sp)
+lw ra, 4(sp)
 addi sp, sp, 8
 jr ra
 

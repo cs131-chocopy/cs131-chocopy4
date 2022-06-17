@@ -1,9 +1,9 @@
 # Init for multiple length string literal
  addi sp, sp, -8
- sw ra, 8(sp)
+ sw ra, 4(sp)
  sw a0, 0(sp)
  la a0, $str$prototype
- li a1, 22
+ li a1, 6
  jal alloc2
  lw t0, 0(sp)
  li t1, 1
@@ -11,7 +11,7 @@
  add t1, a0, 20
  sw t1, 16(a0)
  sb t0, 20(a0)
- lw ra, 8(sp)
+ lw ra, 4(sp)
  addi sp, sp, 8
  jr ra
 

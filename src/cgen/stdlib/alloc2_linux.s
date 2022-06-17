@@ -21,7 +21,7 @@
   slli a0, t0, 2
   call sbrk
   lw a1, -4(fp) # a0 is the new object, a1 is the prototype
-  lw a2, -28(fp) # object word size
+  lw a2, 4(a1) # object word size
   mv a3, a0
 memcpy_cond:
   blez a2, memcpy_end
