@@ -119,7 +119,15 @@ string CodeGen::stackToReg(string name, int reg) {
     return stackToReg(stack_mapping.at(name), reg);
 }
 string CodeGen::regToStack(int reg, int offset) {
-    return fmt::format("  sw {}, {}(fp)\n", reg_name[reg], offset);
+    if (-2048 <= offset && offset < 2048) {
+        return fmt::format("  sw {}, {}(fp)\n", reg_name[reg], offset);
+    } else {
+        string asm_code;
+        asm_code += fmt::format("  li t3, {}\n", offset);
+        asm_code += fmt::format("  add t3, t3, fp\n");
+        asm_code += fmt::format("  sw {}, 0(t3)\n", reg_name[reg]);
+        return asm_code;
+    }
 }
 string CodeGen::regToStack(int reg, string name) {
     return regToStack(reg, stack_mapping.at(name));
@@ -274,10 +282,11 @@ string CodeGen::generateFunctionCode(Function *func) {
         }
     }
 
-    asm_code += fmt::format("  addi sp, sp, {}\n", -stack_size);
-    asm_code += fmt::format("  sw ra, {}(sp)\n", stack_size - 4);
-    asm_code += fmt::format("  sw fp, {}(sp)\n", stack_size - 8);
-    asm_code += fmt::format("  addi fp, sp, {}\n", stack_size);
+    asm_code += fmt::format("  sw ra, {}(sp)\n", -4);
+    asm_code += fmt::format("  sw fp, {}(sp)\n", -8);
+    asm_code += fmt::format("  addi fp, sp, 0\n");
+    asm_code += fmt::format("  li t0, {}\n", stack_size);
+    asm_code += fmt::format("  sub sp, sp, t0\n");
 
     for(auto b : func->get_basic_blocks()) {
         asm_code += fmt::format("{}:\n", getLabelName(b), b->get_name());
@@ -285,9 +294,10 @@ string CodeGen::generateFunctionCode(Function *func) {
     }
 
     asm_code += fmt::format("{}$return:\n", func->get_name());
-    asm_code += fmt::format("  lw ra, {}(sp)\n", stack_size - 4);
-    asm_code += fmt::format("  lw fp, {}(sp)\n", stack_size - 8);
-    asm_code += fmt::format("  addi sp, sp, {}\n", stack_size);
+    asm_code += fmt::format("  li t0, {}\n", stack_size);
+    asm_code += fmt::format("  add sp, sp, t0\n");
+    asm_code += fmt::format("  lw fp, {}(sp)\n", -8);
+    asm_code += fmt::format("  lw ra, {}(sp)\n", -4);
     asm_code += fmt::format("  ret\n");
     return asm_code;
 }
