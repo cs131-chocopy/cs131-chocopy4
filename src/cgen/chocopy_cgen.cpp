@@ -463,11 +463,11 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
         case lightir::Instruction::Call: {
             if (dynamic_cast<Function*>(ops[0])) {
                 auto func_name = ops[0]->get_name();
-                asm_code += generateFunctionCall(inst, fmt::format("  call {}\n", func_name), ops, 10);
+                asm_code += generateFunctionCall(inst, fmt::format("  call {}\n", func_name), ops);
             } else {
                 assert(ops[0]->print() != "");
                 asm_code += valueToReg(ops[0], 6);
-                asm_code += generateFunctionCall(inst, fmt::format("  jalr t1\n"), ops, 10);
+                asm_code += generateFunctionCall(inst, fmt::format("  jalr t1\n"), ops);
             }
             asm_code += regToStack(10, inst->get_name());
             break;
@@ -546,8 +546,7 @@ string CodeGen::getLabelName(Function *func, int type) {
     const std::vector<std::string> name_list = {"pre", "post"};
     return "." + func->get_name() + "_" + name_list.at(type);
 }
-string CodeGen::generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops, int return_reg,
-                                     int sp_ofs) {
+string CodeGen::generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops) {
     // ops[0] is the function
     std::string asm_code;
     int args = ops.size() - 1;
@@ -571,9 +570,6 @@ string CodeGen::generateFunctionCall(Instruction *inst, const string &call_inst,
     
     if (sp_delta != 0) {
         asm_code += fmt::format("  addi sp, sp, {}\n", +sp_delta);
-    }
-    if (return_reg != 10) {
-        asm_code += fmt::format("   addi {}, a0, 0\n", reg_name[return_reg]);
     }
     return asm_code;
 }

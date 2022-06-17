@@ -73,8 +73,7 @@ public:
     string generateInstructionCode(Instruction *inst);
     string getLabelName(BasicBlock *bb);
     string getLabelName(Function *func, int type);
-    string generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops, int return_reg = 0,
-                                int sp_ofs = 0);
+    string generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops);
     [[nodiscard]] string stackToReg(int offset, int reg);
     [[nodiscard]] string stackToReg(string name, int reg);
     [[nodiscard]] string valueToReg(Value* v, int reg);
