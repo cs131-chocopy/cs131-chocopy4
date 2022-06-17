@@ -366,7 +366,7 @@ class DeclarationAnalyzer : public ast::ASTAnalyzer {
     ClassDefType *getClass(const string &name) {
         return globals->declares<ClassDefType *>(name);
     }
-    void checkVarName(const string &name, parser::Ident *id) {
+    void checkShadowClass(const string &name, parser::Ident *id) {
         if (getClass(name)) {
             errors->emplace_back(
                 new SemanticError(id, "Cannot shadow class name: " + name));

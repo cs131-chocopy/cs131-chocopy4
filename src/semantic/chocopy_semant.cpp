@@ -270,7 +270,7 @@ void DeclarationAnalyzer::visit(parser::VarDef &var_def) {
 
     assert(sym->get<ValueType*>(name));
 
-    checkVarName(name, id);
+    checkShadowClass(name, id);
     checkValueType(sym->get<ValueType*>(name), var_def.var->type);
 }
 void DeclarationAnalyzer::visit(parser::ClassDef &class_def) {
@@ -282,7 +282,14 @@ void DeclarationAnalyzer::visit(parser::ClassDef &class_def) {
 
     for(const auto decl : *class_def.declaration) {
         if (ignore(decl)) continue;
-        decl->accept(*this);
+        if (const auto var_def = dynamic_cast<parser::VarDef*>(decl); var_def) {
+            const auto id = var_def->var->identifier;
+            const auto& name = id->name;
+            assert(sym->get<ValueType*>(name));
+            checkValueType(sym->get<ValueType*>(name), var_def->var->type);
+        } else {
+            decl->accept(*this);
+        }
     }
 
     sym = sym->parent;
