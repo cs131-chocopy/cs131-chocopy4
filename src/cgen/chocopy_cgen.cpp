@@ -113,7 +113,15 @@ string InstGen::instConst(string (*inst)(const Reg &, const Value &, string), co
 }
 
 string CodeGen::stackToReg(int offset, int reg) {
-    return fmt::format("  lw {}, {}(fp)\n", reg_name[reg], offset);
+    if (-2048 <= offset && offset < 2048) {
+        return fmt::format("  lw {}, {}(fp)\n", reg_name[reg], offset);
+    } else {
+        string asm_code;
+        asm_code += fmt::format("  li t3, {}\n", offset);
+        asm_code += fmt::format("  add t3, t3, fp\n");
+        asm_code += fmt::format("  lw {}, 0(t3)\n", reg_name[reg]);
+        return asm_code;
+    }
 }
 string CodeGen::stackToReg(string name, int reg) {
     return stackToReg(stack_mapping.at(name), reg);
@@ -406,7 +414,7 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
                 asm_code += regToStack(6, inst->get_name());
             } else {
                 if (alloca_mapping.contains(op)) {
-                    asm_code += fmt::format("  lw t1, {}(fp)\n", alloca_mapping.at(op));
+                    asm_code += stackToReg(alloca_mapping.at(op), 6);
                 } else if (GOT.contains(op)) {
                     asm_code += fmt::format("  lui t1, %hi({})\n  lw t1, %lo({})(t1)\n", op, op);
                 } else {
