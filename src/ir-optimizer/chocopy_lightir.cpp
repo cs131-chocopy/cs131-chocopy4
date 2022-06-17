@@ -484,19 +484,22 @@ void LightWalker::visit(parser::AssignStmt &node) {
             if (i->inferredType->get_name()=="int") {
                 builder->create_store(v,address);
             } else {
-                //TODO: object assignment
+                v=builder->create_call(makeint_fun,{v});
+                builder->create_store(v,address);
             }
         } else if (node.value->inferredType->get_name()=="bool") {
             if (i->inferredType->get_name()=="bool") {
                 builder->create_store(v,address);
             } else {
-                //TODO: object assignment
+                v=builder->create_call(makebool_fun,{v});
+                builder->create_store(v,address);
             }
         } else if (node.value->inferredType->get_name()=="str") {
             if (i->inferredType->get_name()=="str") {
                 builder->create_store(v, address);
             } else {
-                //TODO: object assignment
+                auto t=builder->create_bitcast(v, ArrayType::get(object_class));
+                builder->create_store(t, address);
             }  
         } else {
             // class assignment
@@ -679,11 +682,7 @@ void LightWalker::visit(parser::CallExpr &node)
             auto t2 = builder->create_bitcast(v1, ArrayType::get(union_put));
             builder->create_call(put_fun, {t2});
         } else {
-            int id=get_const_type_id();
-            auto C=ConstantStr::get("Invalid argument", id, module.get());
-            auto t=GlobalVariable::create("const_"+std::to_string(id),module.get(),C);
-            auto t2 = builder->create_bitcast(t, ArrayType::get(union_put));
-            builder->create_call(put_fun, {t2});
+            builder->create_call(put_fun, {v1});
         }
     } else if (func_name=="input") {
         auto input_fun=scope.find_in_global("$input");
@@ -1087,12 +1086,21 @@ void LightWalker::visit(parser::IfExpr &node)
     node.thenExpr->accept(*this);
     auto b_true_end = builder->get_insert_block();
     auto v_true =  visitor_return_value;
-    //TODO: 此处可能产生一个到LCA的类型转换
+    if (node.thenExpr->inferredType->get_name()=="int" && node.inferredType->get_name()!="int") {
+        v_true = builder->create_call(makeint_fun,{v_true});
+    } else if (node.thenExpr->inferredType->get_name()=="bool" && node.inferredType->get_name()!="bool") {
+        v_true = builder->create_call(makebool_fun,{v_true});
+    }
     builder->create_br(b_end);
     builder->set_insert_point(b_false);
     node.elseExpr->accept(*this);
     auto b_false_end = builder->get_insert_block();
     auto v_false = visitor_return_value;
+    if (node.elseExpr->inferredType->get_name()=="int" && node.inferredType->get_name()!="int") {
+        v_false = builder->create_call(makeint_fun,{v_false});
+    } else if (node.elseExpr->inferredType->get_name()=="bool" && node.inferredType->get_name()!="bool") {
+        v_false = builder->create_call(makebool_fun,{v_false});
+    }
     builder->create_br(b_end);
     builder->set_insert_point(b_end);
     auto phi=builder->create_phi(v_true->get_type());
@@ -1142,7 +1150,11 @@ void LightWalker::visit(parser::ListExpr &node)
                 t=builder->create_load(t);
                 para.push_back(t);
             } else {
-                //TODO: dynamic type cast 
+                if (i->inferredType->get_name()=="int") {
+                    v=builder->create_call(makeint_fun,{v});
+                } else if (i->inferredType->get_name()=="bool") {
+                    v=builder->create_call(makebool_fun,{v});
+                }
                 Instruction* t=builder->create_bitcast(temp_conslist, ArrayType::get(ArrayType::get(IntegerType::get(32,module.get()))));
                 auto v2=builder->create_bitcast(v, ArrayType::get(IntegerType::get(32,module.get())));
                 builder->create_store(v2, t);
@@ -1255,7 +1267,6 @@ void LightWalker::visit(parser::MethodCallExpr &node) {
 }
 void LightWalker::visit(parser::NoneLiteral &node) 
 {
-    //TODO: LightWalker for NoneLiteral
     auto t1 = builder->create_call(noconv_fun,vector<Value*>());
     visitor_return_value = t1;
 }
