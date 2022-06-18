@@ -1,6 +1,7 @@
 #ifndef CHOCOPY_COMPILER_CHOCOPY_CGEN_HPP
 #define CHOCOPY_COMPILER_CHOCOPY_CGEN_HPP
 
+#include <vector>
 #ifdef LLVM
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Passes/PassBuilder.h"
@@ -36,6 +37,13 @@ namespace cgen {
 class InstGen;
 class RiscVBackEnd;
 
+class Interval {
+public:
+    std::set<std::pair<int, int>> ranges;
+    void addRange(int l, int r);
+    void setCreatePosition(int pos);
+};
+
 const int op_reg_0 = 5;
 const int op_reg_1 = 6;
 const int op_reg_2 = 7;
@@ -48,13 +56,24 @@ class CodeGen {
 #endif
 private:
     shared_ptr<Module> module;
+    
+    std::map<Value*, int> inst_id;
+    map<BasicBlock*, int> basic_block_from;
+    map<BasicBlock*, int> basic_block_to;
+    map<BasicBlock*, std::set<std::string>> live_in;
+    map<std::string, Interval> intervals;
+    
+    std::map<std::string, InstGen::Reg> vreg_to_reg;
+    std::map<std::string, InstGen::Addr> vreg_to_stack_slot;
+    std::map<InstGen::Reg, std::string> reg_to_vreg;
+
     map<std::string, int> register_mapping;
     map<std::string, int> stack_mapping;
     map<std::string, int> alloca_mapping;
-    map<std::string, int> GOT;
     map<BasicBlock *, std::vector<std::pair<Value*, int>>> phi_store;
-    map<Instruction *, set<Value *>> context_active_vars;
     int stack_size;
+
+    map<std::string, int> GOT;
     bool debug;
     RiscVBackEnd *backend;
     BasicBlock* current_basic_block;
@@ -65,23 +84,33 @@ public:
 #ifdef LLVM
     explicit CodeGen() : CodeGen(chocopy_m){};
 #endif
-    string generateModuleCode();
-    string generateFunctionCode(Function *func);
-    string generateFunctionExitCode();
-    string generateBasicBlockCode(BasicBlock *bb);
-    string generateBasicBlockPostCode(BasicBlock *bb);
-    string generateInstructionCode(Instruction *inst);
-    string getLabelName(BasicBlock *bb);
-    string getLabelName(Function *func, int type);
-    string generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops);
+    [[nodiscard]] string generateModuleCode();
+
+    void lifetimeAnalysis();
+    void linearScan();
+
+    [[nodiscard]] string generateFunctionCode(Function *func);
+    [[nodiscard]] string generateFunctionExitCode();
+
+    [[nodiscard]] string generateBasicBlockCode(BasicBlock *bb);
+    [[nodiscard]] string generateBasicBlockPostCode(BasicBlock *bb);
+
+    [[nodiscard]] string generateInstructionCode(Instruction *inst);
+    [[nodiscard]] string generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops);
+
+    [[nodiscard]] string getLabelName(BasicBlock *bb);
+    [[nodiscard]] string getLabelName(Function *func, int type);
+
+    [[nodiscard]] string generateGlobalVarsCode();
+    [[nodiscard]] string generateInitializerCode(Constant *init);
+    [[nodiscard]] pair<int, bool> getConstIntVal(Value *val);    
+
     [[nodiscard]] string stackToReg(int offset, int reg);
     [[nodiscard]] string stackToReg(string name, int reg);
     [[nodiscard]] string valueToReg(Value* v, int reg);
     [[nodiscard]] string regToStack(int reg, int offset);
     [[nodiscard]] string regToStack(int reg, string name);
-    string generateGlobalVarsCode();
-    string generateInitializerCode(Constant *init);
-    pair<int, bool> getConstIntVal(Value *val);
+
     string comment(const string &s);
     string comment(const string &t, const string &s);
 #ifdef LLVM

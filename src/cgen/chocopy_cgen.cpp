@@ -112,6 +112,25 @@ string InstGen::instConst(string (*inst)(const Reg &, const Value &, string), co
     return asm_code;
 }
 
+void Interval::addRange(int l, int r) {
+    auto it = ranges.lower_bound({l, 0});
+    if (it != ranges.end() && it->first == l) {
+        if (it->second < r) {
+            ranges.erase(it);
+            ranges.insert({l, r});
+        }
+    } else {
+        ranges.insert({l, r});
+    }
+}
+void Interval::setCreatePosition(int pos) {
+    if (ranges.size() > 0) {
+        std::pair<int, int> s = *ranges.begin();
+        ranges.erase(ranges.begin());
+        ranges.insert({pos, s.second});
+    }
+}
+
 string CodeGen::stackToReg(int offset, int reg) {
     if (-2048 <= offset && offset < 2048) {
         return fmt::format("  lw {}, {}(fp)\n", reg_name[reg], offset);
@@ -226,12 +245,202 @@ string CodeGen::generateModuleCode() {
     return asm_code;
 }
 
+void CodeGen::lifetimeAnalysis() {
+    std::cerr << "Lifetime analysis for function " << current_function->get_name() << std::endl;
+    basic_block_from.clear();
+    basic_block_to.clear();
+    inst_id.clear();
+    live_in.clear();
+    intervals.clear();
+    auto& basic_blocks = current_function->get_basic_blocks();
+
+    int inst_count = 0;
+    map<BasicBlock*, std::vector<PhiInst*>> phi_instructions;
+    for (auto &bb : basic_blocks) {
+        basic_block_from[bb] = inst_count++;
+        for (auto &inst : bb->get_instructions()) {
+            inst_id[inst] = inst_count++;
+            if (auto phi = dynamic_cast<PhiInst*>(inst); phi) {
+                assert(phi->get_num_operand() == 4);
+                phi_instructions[bb].push_back(phi);
+            }
+        }
+        basic_block_to[bb] = inst_count++;
+    }
+
+    bool changed = true;
+    while (changed) {
+        changed = false;
+        for (auto bb_iter = basic_blocks.crbegin(); bb_iter != basic_blocks.crend(); ++bb_iter) {
+            const auto bb = *bb_iter;
+            // std::cerr << "Lifetime analysis for block " << bb->get_name() << std::endl;
+            std::set<std::string> live;
+
+            // std::cerr << "union of successor.liveIn" << std::endl;
+            for (const auto succ_bb : bb->get_succ_basic_blocks()) {
+                const auto& succ_bb_live_in = live_in[succ_bb];
+                // std::cerr << "  " << succ_bb->get_name() << ": ";
+                // for (const auto& opd : succ_bb_live_in) {
+                //     std::cerr << opd << " ";
+                // }
+                live.insert(succ_bb_live_in.cbegin(), succ_bb_live_in.cend());
+                for(const auto phi : phi_instructions[succ_bb]) {
+                    const auto& ops = phi->get_operands();
+                    for(int i = 0; i < 4; i += 2) {
+                        const auto v = ops[i];
+                        const auto pred = ops[i+1];
+                        if (pred == bb) {
+                            live.insert(v->get_name());
+                        }
+                    }
+                }
+            }
+            // std::cerr << "end union" << std::endl;
+
+            int bb_from = basic_block_from[bb];
+            int bb_to = basic_block_to[bb];
+            for (const auto& opd : live) {
+                // std::cerr << opd << " add range " << bb_from << " " << bb_to << std::endl;
+                intervals[opd].addRange(bb_from, bb_to);
+            }
+
+            for (auto inst_iter = bb->get_instructions().rbegin(); inst_iter != bb->get_instructions().rend(); ++inst_iter) {
+                const auto inst = *inst_iter;
+                int id = inst_id[inst];
+
+                live.erase(inst->get_name());
+                if (dynamic_cast<PhiInst*>(inst)) continue;
+                // std::cerr << " " << inst->get_name() << " setCreatePosition " << id << std::endl;
+                intervals[inst->get_name()].setCreatePosition(id);
+                if (dynamic_cast<CallInst*>(inst) && (inst->get_name() == "" || intervals[inst->get_name()].ranges.size() == 0)) {
+                    intervals["call"].addRange(id, id);
+                }
+
+                if (dynamic_cast<AsmInst*>(inst)) continue;;
+                for (const auto& op : inst->get_operands()) {
+                    if (dynamic_cast<GlobalVariable*>(op) || dynamic_cast<Class*>(op) || dynamic_cast<Function*>(op) || dynamic_cast<BasicBlock*>(op))
+                        continue;
+                    // std::cerr << " " << op->get_name() << " addRange " << bb_from << ' ' << id << std::endl;
+                    intervals[op->get_name()].addRange(bb_from, id);
+                    live.insert(op->get_name());
+                }
+                if (dynamic_cast<ReturnInst*>(inst)) {
+                    intervals["ra"].addRange(bb_from, id);
+                    live.insert("ra");
+                }
+            }
+
+            live.erase("");
+            // std::cerr << "-!-!-!-live in: ";
+            // for (const auto& opd : live) {
+            //     std::cerr << opd << " ";
+            // }
+            // std::cerr << std::endl;
+            // std::cerr << "current live size: " << live.size() << " before: " << live_in[bb].size() << std::endl;
+            if (live.size() != live_in[bb].size()) {
+                changed = true;
+                live_in[bb] = std::move(live);
+            }
+            // std::cerr << "Done lifetime analysis for block " << bb->get_name() << std::endl << std::endl;
+        }
+    }
+    intervals.erase("");
+
+    std::cerr << "result of lifetime analysis" << std::endl;
+
+    for (auto &bb : basic_blocks) {
+        std::cerr << basic_block_from[bb] << " " << bb->get_name() << ":" << std::endl;
+        for (auto &inst : bb->get_instructions()) {
+            std::cerr << inst_id[inst] << ": " << inst->print() << std::endl; 
+        }
+        std::cerr << basic_block_to[bb] << " " << bb->get_name() << " end" << std::endl;
+    }
+
+    for (const auto& kv : intervals) {
+        std::cerr << kv.first;
+        std::cerr << ": intervals:";
+        for (const auto& p : kv.second.ranges) {
+            std::cerr << fmt::format(" [{}, {}]", p.first, p.second);
+        } 
+        std::cerr << std::endl;
+    }
+
+    std::cerr << "Lifetime analysis done" << std::endl << std::endl;
+}
+
+void CodeGen::linearScan() {
+    using Reg = InstGen::Reg;
+    using Addr = InstGen::Addr;
+    std::cerr << "Linear scan for function " << current_function->get_name() << std::endl;
+
+    vreg_to_reg.clear(); vreg_to_stack_slot.clear(); reg_to_vreg.clear();
+
+    std::vector<std::string> unhandled;
+    unhandled.reserve(intervals.size());
+    for (const auto& kv : intervals) {
+        if (kv.second.ranges.size() > 0)
+            unhandled.push_back(kv.first);
+    }
+    std::sort(unhandled.begin(), unhandled.end(), [this](const std::string& a, const std::string& b) {
+        return intervals[a].ranges.begin()->first < intervals[b].ranges.begin()->first;
+    });
+
+    auto pair_vreg_reg = [this](const std::string& vreg, Reg reg) {
+        vreg_to_reg.insert({vreg, reg});
+        reg_to_vreg.insert({reg, vreg});
+    };
+    int offset = 0;
+    auto assign_vreg_stack_slot = [this, &offset](const std::string& vreg, int size = 4) {
+        offset -= size;
+        vreg_to_stack_slot.insert({vreg, Addr(Reg(8), offset)});
+    };
+
+    std::set<std::string> active, inactive;
+    int args_nums = current_function->get_num_of_args();
+    for (int i = 0; i < args_nums; i++) {
+        const auto op = fmt::format("arg{}", i);
+        pair_vreg_reg(op, Reg(10 + i));
+    }
+    for (int i = 8; i < args_nums; i++) {
+        const auto op = fmt::format("arg{}", i);
+        vreg_to_stack_slot.insert({op, Addr(Reg(8), (i - 8) * 4)});
+    }
+
+    for (const auto& op : unhandled) {
+        const auto& interval = intervals[op];
+        int pos = interval.ranges.begin()->first;
+
+        // active -> active, inactive, handled
+        for (const auto& vreg : active) {
+            const auto& i = intervals[vreg];
+            auto it = i.ranges.lower_bound({pos, 0});
+            assert(it != i.ranges.begin());
+            --it;
+            if (it->second <= pos) {
+                reg_to_vreg.erase(vreg_to_reg.at(vreg));
+            }
+        }
+
+        // inactive -> active, handled
+
+        // TODO
+    }
+    std::cerr << "Linear scan done" << std::endl << std::endl;
+}
+
 string CodeGen::generateFunctionCode(Function *func) {
     // std::cerr << "Generating code for function " << func->get_name() << std::endl;
     // 注意这里没有保存 a0, a1, a2, a3, a4, a5, a6, a7
     // 因为函数生成 LLVM IR 时会给每个参数 %opx = alloca i32; store %arg, ptr %opx
     // 所以他们只会在函数最初 alloca-store 时被使用
     current_function = func;
+
+    // lifetime analysis
+    lifetimeAnalysis();
+
+    // register allocation
+    // linearScan();
+
     string asm_code;
     asm_code += fmt::format(".globl {}\n{}:\n", func->get_name(), func->get_name());
 
