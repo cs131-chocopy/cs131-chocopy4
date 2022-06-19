@@ -171,14 +171,14 @@ public:
      * Emit an ecall instruction, with one-line comment COMMENT,
      * if non-null.
      */
-    static string emit_ecall(string comment = "") { return fmt::format("{:<40}#{:<42}\n", "ecall", comment); }
+    static string emit_ecall(string comment = "") { return fmt::format("  {:<40}#{:<42}\n", "ecall", comment); }
 
     /**
      * Emit a load-address instruction with destination RD and source
      * LABEL.  COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_la(const InstGen::Reg &rd, InstGen::Addr label, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("la {}, {}", rd.get_name(), label.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("la {}, {}", rd.get_name(), label.get_name()), comment);
     }
 
     /**
@@ -186,7 +186,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_li(const InstGen::Reg &rd, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("li {}, {}", rd.get_name(), imm), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("li {}, {}", rd.get_name(), imm), comment);
     }
 
     /**
@@ -195,7 +195,7 @@ public:
      * one-line comment (null if missing).
      */
     static string emit_lui(const InstGen::Reg &rd, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("lui {}, {}", rd.get_name(), imm), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lui {}, {}", rd.get_name(), imm), comment);
     }
 
     /**
@@ -203,14 +203,23 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_mv(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("mv {}, {}", rs.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("mv {}, {}", rd.get_name(), rs.get_name()), comment);
     }
+
+    /**
+     * Emit a neg instruction to set RD to -RS.
+     * COMMENT is an optional one-line comment (null if missing).
+     */
+    static string emit_neg(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("neg {}, {}", rd.get_name(), rs.get_name()), comment);
+    }
+
     /**
      * Emit a jump-register (computed jump) instruction to the address in
      * RS.  COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_jr(const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("jr {}", rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("jr {}", rs.get_name()), comment);
     }
 
     /**
@@ -218,7 +227,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_j(string label, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("j {}", label), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("j {}", label), comment);
     }
 
     /**
@@ -226,7 +235,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_jal(InstGen::Addr label, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("jal {}", label.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("jal {}", label.get_name()), comment);
     }
 
     /**
@@ -234,7 +243,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_jalr(const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("jalr {}", rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("jalr {}", rs.get_name()), comment);
     }
 
     /**
@@ -243,7 +252,7 @@ public:
      * comment (null if missing).
      */
     static string emit_addi(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("addi {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("addi {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -255,7 +264,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_addi(const InstGen::Reg &rd, const InstGen::Reg &rs, string imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("addi {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("addi {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -265,7 +274,7 @@ public:
      */
     static string emit_add(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Value &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("add {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -275,7 +284,7 @@ public:
      */
     static string emit_sub(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Value &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("sub {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -285,7 +294,7 @@ public:
      */
     static string emit_mul(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("mul {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -298,7 +307,7 @@ public:
      */
     static string emit_div(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("div {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -309,7 +318,7 @@ public:
      */
     static string emit_rem(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("rem {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -319,7 +328,7 @@ public:
      */
     static string emit_xor(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("xor {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -329,7 +338,7 @@ public:
      * one-line comment (null if missing).
      */
     static string emit_xori(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("xori {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("xori {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -339,7 +348,7 @@ public:
      */
     static string emit_and(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("and {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -349,7 +358,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_andi(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("andi {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("andi {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -359,7 +368,7 @@ public:
      */
     static string emit_or(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                           string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("or {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -369,7 +378,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_ori(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("ori {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("ori {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -379,7 +388,7 @@ public:
      */
     static string emit_sll(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("sll {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -388,7 +397,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_slli(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("slli {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("slli {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -398,7 +407,7 @@ public:
      */
     static string emit_srl(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("srl {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -407,7 +416,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_srli(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("srli {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("srli {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -417,7 +426,7 @@ public:
      */
     static string emit_sra(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("sra {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     }
 
@@ -426,7 +435,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_srai(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("srai {}, {}, {}", rd.get_name(), rs.get_name(), imm),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("srai {}, {}, {}", rd.get_name(), rs.get_name(), imm),
                            comment);
     }
 
@@ -436,7 +445,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_lw(const InstGen::Reg &rd, const InstGen::Reg &rs, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("lw {}, {}({})", rd.get_name(), imm, rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lw {}, {}({})", rd.get_name(), imm, rs.get_name()), comment);
     }
 
     /**
@@ -446,7 +455,7 @@ public:
      * comment (null if missing).
      */
     static string emit_lw(const InstGen::Reg &rd, const InstGen::Reg &rs, string imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("lw {}, {}({})", rd.get_name(), imm, rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lw {}, {}({})", rd.get_name(), imm, rs.get_name()), comment);
     }
 
     /**
@@ -455,7 +464,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_sw(const InstGen::Reg &rs2, const InstGen::Reg &rs1, int imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("sw {}, {}({})", rs2.get_name(), imm, rs1.get_name()),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("sw {}, {}({})", rs2.get_name(), imm, rs1.get_name()),
                            comment);
     }
 
@@ -464,7 +473,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_lw(const InstGen::Reg &rs, InstGen::Addr label, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("lw {}, {}", rs.get_name(), label.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lw {}, {}", rs.get_name(), label.get_name()), comment);
     }
 
     /**
@@ -473,7 +482,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_sw(const InstGen::Reg &rs, InstGen::Addr label, const InstGen::Reg &tmp, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("sw {}, {}, {}", rs.get_name(), label.get_name(), tmp.get_name()), comment);
     }
 
@@ -483,7 +492,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_lb(const InstGen::Reg &rd, const InstGen::Reg &rs, const int &imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("lb {}, {}, {}", rd.get_name(), imm, rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lb {}, {}, {}", rd.get_name(), imm, rs.get_name()), comment);
     }
 
     /**
@@ -492,7 +501,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_lbu(const InstGen::Reg &rd, const InstGen::Reg &rs, const int &imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("lbu {}, {}, {}", rd.get_name(), imm, rs.get_name()),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lbu {}, {}, {}", rd.get_name(), imm, rs.get_name()),
                            comment);
     }
 
@@ -502,7 +511,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_sb(const InstGen::Reg &rs2, const InstGen::Reg &rs1, const int &imm, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("sb {}, {}]({}) ", rs2.get_name(), imm, rs1.get_name()),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("sb {}, {}]({}) ", rs2.get_name(), imm, rs1.get_name()),
                            comment);
     }
 
@@ -511,7 +520,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_beq(const InstGen::Reg &rs1, const InstGen::Reg &rs2, InstGen::Addr label, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("beq {}, {}, {}", rs1.get_name(), rs2.get_name(), label.get_name()), comment);
     }
 
@@ -520,7 +529,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bne(const InstGen::Reg &rs1, const InstGen::Reg &rs2, InstGen::Addr label, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("bne {}, {}, {}", rs1.get_name(), rs2.get_name(), label.get_name()), comment);
     }
 
@@ -530,7 +539,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bge(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bge {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bge {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -539,7 +548,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bgeu(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bgeu {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bgeu {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -548,7 +557,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_blt(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("blt {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("blt {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -557,7 +566,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bltu(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bltu {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bltu {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -565,7 +574,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bnqz(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bnqz {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bnqz {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -573,7 +582,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bnez(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bnez {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bnez {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -581,7 +590,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bltz(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bltz {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bltz {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -589,7 +598,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bgtz(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bgtz {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bgtz {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -598,7 +607,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_blez(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("blez {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("blez {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -607,7 +616,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_bgez(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("bgez {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("bgez {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -616,7 +625,7 @@ public:
      */
     static string emit_slt(const InstGen::Reg &rd, const InstGen::Reg &rs1, const InstGen::Reg &rs2,
                            string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n",
+        return fmt::format("  {:<40}#{:<42}\n",
                            fmt::format("slt {}, {}, {}", rd.get_name(), rs1.get_name(), rs2.get_name()), comment);
     };
 
@@ -625,7 +634,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_seqz(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("seqz {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("seqz {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     /**
@@ -633,23 +642,23 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_snez(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("snez {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("snez {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     static string emit_vload(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("vload {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("vload {}, {}", rd.get_name(), rs.get_name()), comment);
     };
     static string emit_vstore(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("vstore {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("vstore {}, {}", rd.get_name(), rs.get_name()), comment);
     };
     static string emit_vadd_vv(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("vadd.vv {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("vadd.vv {}, {}", rd.get_name(), rs.get_name()), comment);
     };
     static string emit_vdiv_vv(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("vdiv.vv {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("vdiv.vv {}, {}", rd.get_name(), rs.get_name()), comment);
     };
     static string emit_vmul_vv(const InstGen::Reg &rd, const InstGen::Reg &rs, string comment = "") {
-        return fmt::format("{:<40}#{:<42}\n", fmt::format("vmul.vv {}, {}", rd.get_name(), rs.get_name()), comment);
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("vmul.vv {}, {}", rd.get_name(), rs.get_name()), comment);
     };
 
     static string emit_epilogue(const std::vector<InstGen::Reg> &reg_list, string comment = "") {

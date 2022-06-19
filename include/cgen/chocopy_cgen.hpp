@@ -42,6 +42,7 @@ public:
     std::set<std::pair<int, int>> ranges;
     void addRange(int l, int r);
     void setCreatePosition(int pos);
+    bool overlaps(const Interval& i) const;
 };
 
 const int op_reg_0 = 5;
@@ -65,12 +66,10 @@ private:
     
     std::map<std::string, InstGen::Reg> vreg_to_reg;
     std::map<std::string, InstGen::Addr> vreg_to_stack_slot;
+    std::map<std::string, InstGen::Addr> alloca_to_stack_slot;
     std::map<InstGen::Reg, std::string> reg_to_vreg;
 
-    map<std::string, int> register_mapping;
-    map<std::string, int> stack_mapping;
-    map<std::string, int> alloca_mapping;
-    map<BasicBlock *, std::vector<std::pair<Value*, int>>> phi_store;
+    map<BasicBlock *, std::vector<std::pair<Value*, std::string>>> phi_store;
     int stack_size;
 
     map<std::string, int> GOT;
@@ -105,11 +104,11 @@ public:
     [[nodiscard]] string generateInitializerCode(Constant *init);
     [[nodiscard]] pair<int, bool> getConstIntVal(Value *val);    
 
-    [[nodiscard]] string stackToReg(int offset, int reg);
-    [[nodiscard]] string stackToReg(string name, int reg);
-    [[nodiscard]] string valueToReg(Value* v, int reg);
-    [[nodiscard]] string regToStack(int reg, int offset);
-    [[nodiscard]] string regToStack(int reg, string name);
+    [[nodiscard]] string stackToReg(InstGen::Addr addr, InstGen::Reg reg);
+    [[nodiscard]] InstGen::Reg getReg(const std::string& vreg, int fallback = 5);
+    [[nodiscard]] string vregToReg(Value* vreg, InstGen::Reg reg);
+    [[nodiscard]] string regToStack(InstGen::Reg reg, InstGen::Addr addr);
+    [[nodiscard]] string regToStack(const string& vreg);
 
     string comment(const string &s);
     string comment(const string &t, const string &s);

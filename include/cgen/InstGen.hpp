@@ -116,6 +116,7 @@ public:
         Addr(string_view str) : str(str.begin(), str.end()), reg(Reg(0)), offset(0) {}
         Addr(const char *str) : str(str), reg(Reg(0)), offset(0) {}
         Reg getReg() const { return this->reg; }
+        void setReg(Reg reg) { this->reg = reg; }
         int getOffset() const { return this->offset; }
         string get_name() const;
     };

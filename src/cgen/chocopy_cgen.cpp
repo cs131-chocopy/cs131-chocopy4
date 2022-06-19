@@ -4,12 +4,14 @@
 #include "GlobalVariable.hpp"
 #include "InstGen.hpp"
 #include "Module.hpp"
+#include "RiscVBackEnd.hpp"
 #include "Type.hpp"
 #include "Value.hpp"
 #include <cassert>
 #include <chocopy_cgen.hpp>
 #include <chocopy_lightir.hpp>
 #include <fmt/core.h>
+#include <string>
 #if __cplusplus > 202000L && !defined(__clang__)
 #include <ranges>
 #endif
@@ -48,7 +50,7 @@ int getTypeSizeInBytes(Type *type) {
 
 string InstGen::Addr::get_name() const {
     if (str.empty())
-        return fmt::format("[{}, #{}]", reg.get_name(), std::to_string(this->offset));
+        return fmt::format("{}({})",std::to_string(this->offset), reg.get_name());
     else
         return str;
 }
@@ -130,50 +132,76 @@ void Interval::setCreatePosition(int pos) {
         ranges.insert({pos, s.second});
     }
 }
+bool Interval::overlaps(const Interval& i) const {
+    for (const auto& range : i.ranges) {
+        auto it = ranges.lower_bound({range.second, 0});
+        if (it == ranges.begin())
+            continue;
+        --it;
+        if (it->second > range.first) {
+            return true;
+        }
+    }
+    return false;
+}
 
-string CodeGen::stackToReg(int offset, int reg) {
-    if (-2048 <= offset && offset < 2048) {
-        return fmt::format("  lw {}, {}(fp)\n", reg_name[reg], offset);
+string CodeGen::stackToReg(InstGen::Addr addr, InstGen::Reg reg) {
+    if (-2048 <= addr.getOffset() && addr.getOffset() < 2048) {
+        return backend->emit_lw(reg, addr.getReg(), addr.getOffset());
     } else {
         string asm_code;
-        asm_code += fmt::format("  li t3, {}\n", offset);
-        asm_code += fmt::format("  add t3, t3, fp\n");
-        asm_code += fmt::format("  lw {}, 0(t3)\n", reg_name[reg]);
+        const auto t0 = InstGen::Reg("t0");
+        asm_code += backend->emit_li(t0, addr.getOffset());
+        asm_code += backend->emit_add(t0, addr.getReg(), t0);
+        asm_code += backend->emit_lw(reg, t0, 0);
         return asm_code;
     }
 }
-string CodeGen::stackToReg(string name, int reg) {
-    return stackToReg(stack_mapping.at(name), reg);
-}
-string CodeGen::regToStack(int reg, int offset) {
-    if (-2048 <= offset && offset < 2048) {
-        return fmt::format("  sw {}, {}(fp)\n", reg_name[reg], offset);
+string CodeGen::regToStack(InstGen::Reg reg, InstGen::Addr addr) {
+    if (-2048 <= addr.getOffset() && addr.getOffset() < 2048) {
+        return backend->emit_sw(reg, addr.getReg(), addr.getOffset());
     } else {
         string asm_code;
-        asm_code += fmt::format("  li t3, {}\n", offset);
-        asm_code += fmt::format("  add t3, t3, fp\n");
-        asm_code += fmt::format("  sw {}, 0(t3)\n", reg_name[reg]);
+        const auto t0 = InstGen::Reg("t0");
+        asm_code += backend->emit_li(t0, addr.getOffset());
+        asm_code += backend->emit_add(t0, addr.getReg(), t0);
+        asm_code += backend->emit_sw(reg, t0, 0);
         return asm_code;
     }
 }
-string CodeGen::regToStack(int reg, string name) {
-    return regToStack(reg, stack_mapping.at(name));
+string CodeGen::regToStack(const string &vreg) {
+    assert(vreg_to_reg.contains(vreg) && vreg_to_stack_slot.contains(vreg));
+    return regToStack(vreg_to_reg.at(vreg), vreg_to_stack_slot.at(vreg));
 }
-string CodeGen::valueToReg(Value *v, int reg) {
-    if (dynamic_cast<ConstantNull*>(v)) {
-        return fmt::format("  li {}, 0\n", reg_name[reg]);
-    } else if (auto c = dynamic_cast<ConstantInt*>(v); c) {
-        return fmt::format("  li {}, {}\n", reg_name[reg], c->get_value());
-    } else if (auto a = dynamic_cast<AllocaInst*>(v)) {
-        return fmt::format("  addi {}, fp, {}\n", reg_name[reg], alloca_mapping[a->get_name()]);
-    } else if (auto cls = dynamic_cast<Class*>(v); cls) {
-        return fmt::format("  la {}, {}\n", reg_name[reg], cls->prototype_label_);
-    } else if (auto name = v->get_name(); GOT.contains(name)) {
-        return fmt::format("  la {}, {}\n", reg_name[reg], name);
-    } else if (register_mapping.contains(v->get_name())) {
-        return fmt::format("  addi {}, {}, 0\n", reg_name[reg], reg_name[register_mapping.at(v->get_name())]);
+InstGen::Reg CodeGen::getReg(const string &vreg, int fallback) {
+    if (vreg_to_stack_slot.contains(vreg)) 
+        return InstGen::Reg(fallback);
+    else if (vreg_to_reg.contains(vreg))
+        return vreg_to_reg.at(vreg);
+    else
+        return InstGen::Reg(fallback);
+}
+string CodeGen::vregToReg(Value* vreg, InstGen::Reg reg) {
+    if (dynamic_cast<ConstantNull*>(vreg)) {
+        return backend->emit_li(reg, 0);
+    } else if (auto c = dynamic_cast<ConstantInt*>(vreg); c) {
+        return backend->emit_li(reg, c->get_value());
+    } else if (auto a = dynamic_cast<AllocaInst*>(vreg)) {
+        assert (stack_size != 0);
+        return backend->emit_addi(reg, InstGen::Reg("fp"), alloca_to_stack_slot.at(a->get_name()).getOffset());
+    } else if (auto cls = dynamic_cast<Class*>(vreg); cls) {
+        return backend->emit_la(reg, InstGen::Addr(cls->prototype_label_));
+    } else if (auto name = vreg->get_name(); GOT.contains(name)) {
+        return backend->emit_la(reg, InstGen::Addr(name));
     }
-    return stackToReg(v->get_name(), reg);
+
+    if (vreg_to_stack_slot.contains(vreg->get_name())) {
+        return stackToReg(vreg_to_stack_slot.at(vreg->get_name()), reg);
+    } else {
+        auto r = vreg_to_reg.at(vreg->get_name());
+        if (r == reg) return "";
+        else return backend->emit_mv(reg, r);
+    }
 }
 
 string CodeGen::generateModuleCode() {
@@ -246,7 +274,7 @@ string CodeGen::generateModuleCode() {
 }
 
 void CodeGen::lifetimeAnalysis() {
-    std::cerr << "Lifetime analysis for function " << current_function->get_name() << std::endl;
+    // std::cerr << "Lifetime analysis for function " << current_function->get_name() << std::endl;
     basic_block_from.clear();
     basic_block_to.clear();
     inst_id.clear();
@@ -312,9 +340,6 @@ void CodeGen::lifetimeAnalysis() {
                 if (dynamic_cast<PhiInst*>(inst)) continue;
                 // std::cerr << " " << inst->get_name() << " setCreatePosition " << id << std::endl;
                 intervals[inst->get_name()].setCreatePosition(id);
-                if (dynamic_cast<CallInst*>(inst) && (inst->get_name() == "" || intervals[inst->get_name()].ranges.size() == 0)) {
-                    intervals["call"].addRange(id, id);
-                }
 
                 if (dynamic_cast<AsmInst*>(inst)) continue;;
                 for (const auto& op : inst->get_operands()) {
@@ -323,10 +348,6 @@ void CodeGen::lifetimeAnalysis() {
                     // std::cerr << " " << op->get_name() << " addRange " << bb_from << ' ' << id << std::endl;
                     intervals[op->get_name()].addRange(bb_from, id);
                     live.insert(op->get_name());
-                }
-                if (dynamic_cast<ReturnInst*>(inst)) {
-                    intervals["ra"].addRange(bb_from, id);
-                    live.insert("ra");
                 }
             }
 
@@ -346,35 +367,59 @@ void CodeGen::lifetimeAnalysis() {
     }
     intervals.erase("");
 
-    std::cerr << "result of lifetime analysis" << std::endl;
+    // std::cerr << "result of lifetime analysis" << std::endl;
 
-    for (auto &bb : basic_blocks) {
-        std::cerr << basic_block_from[bb] << " " << bb->get_name() << ":" << std::endl;
-        for (auto &inst : bb->get_instructions()) {
-            std::cerr << inst_id[inst] << ": " << inst->print() << std::endl; 
-        }
-        std::cerr << basic_block_to[bb] << " " << bb->get_name() << " end" << std::endl;
-    }
+    // for (auto &bb : basic_blocks) {
+    //     std::cerr << basic_block_from[bb] << " " << bb->get_name() << ":" << std::endl;
+    //     for (auto &inst : bb->get_instructions()) {
+    //         std::cerr << inst_id[inst] << ": " << inst->print() << std::endl; 
+    //     }
+    //     std::cerr << basic_block_to[bb] << " " << bb->get_name() << " end" << std::endl;
+    // }
 
-    for (const auto& kv : intervals) {
-        std::cerr << kv.first;
-        std::cerr << ": intervals:";
-        for (const auto& p : kv.second.ranges) {
-            std::cerr << fmt::format(" [{}, {}]", p.first, p.second);
-        } 
-        std::cerr << std::endl;
-    }
+    // for (const auto& kv : intervals) {
+    //     std::cerr << kv.first;
+    //     std::cerr << ": intervals:";
+    //     for (const auto& p : kv.second.ranges) {
+    //         std::cerr << fmt::format(" [{}, {}]", p.first, p.second);
+    //     } 
+    //     std::cerr << std::endl;
+    // }
 
-    std::cerr << "Lifetime analysis done" << std::endl << std::endl;
+    // std::cerr << "Lifetime analysis done" << std::endl << std::endl;
 }
 
 void CodeGen::linearScan() {
     using Reg = InstGen::Reg;
     using Addr = InstGen::Addr;
-    std::cerr << "Linear scan for function " << current_function->get_name() << std::endl;
+    // std::cerr << "Linear scan for function " << current_function->get_name() << std::endl;
 
-    vreg_to_reg.clear(); vreg_to_stack_slot.clear(); reg_to_vreg.clear();
+    vreg_to_reg.clear(); vreg_to_stack_slot.clear(); reg_to_vreg.clear(); alloca_to_stack_slot.clear();
 
+    int call_count = 0;
+    std::set<std::string> call_inst_names;
+    std::map<std::string, int> alloca_inst_to_bytes;
+    for (auto bb : current_function->get_basic_blocks()) {
+        for (auto inst : bb->get_instructions()) {
+            if (dynamic_cast<CallInst*>(inst)) {
+                if (inst->get_name() == "") {
+                    call_inst_names.insert(fmt::format("call{}", call_count));
+                    intervals[fmt::format("call{}", call_count)].addRange(inst_id[inst], inst_id[inst]);
+                    call_count++;
+                } else {
+                    call_inst_names.insert(inst->get_name());
+                    if (intervals.at(inst->get_name()).ranges.size() == 0) {
+                        intervals.at(inst->get_name()).addRange(inst_id[inst], inst_id[inst]);
+                    }
+                }
+            }
+            if (dynamic_cast<AllocaInst*>(inst)) {
+                alloca_inst_to_bytes.insert({inst->get_name(), getTypeSizeInBytes(((AllocaInst*)inst)->get_alloca_type())});
+            }
+        }
+    }
+
+    std::set<std::string> active, inactive;
     std::vector<std::string> unhandled;
     unhandled.reserve(intervals.size());
     for (const auto& kv : intervals) {
@@ -385,97 +430,218 @@ void CodeGen::linearScan() {
         return intervals[a].ranges.begin()->first < intervals[b].ranges.begin()->first;
     });
 
-    auto pair_vreg_reg = [this](const std::string& vreg, Reg reg) {
+    const std::vector<Reg> regs_going_to_be_used = {
+        Reg(9), Reg(18), Reg(19), Reg(20), Reg(21), Reg(22), Reg(23), Reg(24), Reg(25), Reg(26), Reg(27), // s2 - s11
+        Reg(10), Reg(11), Reg(12), Reg(13), Reg(14), Reg(15), Reg(16), Reg(17), // a0 - a7
+        Reg(28), Reg(29), Reg(30), Reg(31), // t3 - t6
+    };
+    std::set<Reg> regs_used;
+
+    auto pair_vreg_reg = [this, &regs_used](const std::string& vreg, Reg reg) {
         vreg_to_reg.insert({vreg, reg});
         reg_to_vreg.insert({reg, vreg});
+        regs_used.insert(reg);
     };
     int offset = 0;
-    auto assign_vreg_stack_slot = [this, &offset](const std::string& vreg, int size = 4) {
+    auto alloca_stack_slot = [this, &offset](int size) -> Addr {
         offset -= size;
-        vreg_to_stack_slot.insert({vreg, Addr(Reg(8), offset)});
+        return Addr(Reg(8), offset);
+    };
+    auto assign_vreg_stack_slot = [this, &alloca_stack_slot](const std::string& vreg, int size = 4) {
+        assert(!vreg_to_stack_slot.contains(vreg));
+        vreg_to_stack_slot.insert({vreg, alloca_stack_slot(size)});
     };
 
-    std::set<std::string> active, inactive;
+    auto is_reg_conflict = [&active, &inactive, this](const Reg& reg, const Interval& interval) -> bool {
+        if (reg_to_vreg.contains(reg)) {
+            return true;
+        }
+        for (const auto& vreg : inactive) {
+            if (vreg_to_reg.at(vreg) != reg || vreg_to_stack_slot.contains(vreg))
+                continue; 
+            const auto& i = intervals[vreg];
+            if (interval.overlaps(i))
+                return true;
+        }
+        return false;
+    };
+    auto move_conflict_vreg_to_stack = [this, &active, &inactive, &assign_vreg_stack_slot](const Reg& reg, const Interval& interval) -> void {
+        if (reg_to_vreg.contains(reg)) {
+            assign_vreg_stack_slot(reg_to_vreg.at(reg));
+            reg_to_vreg.erase(reg);
+        }
+        for (const auto& vreg : inactive) {
+            if (vreg_to_reg.at(vreg) != reg || vreg_to_stack_slot.contains(vreg))
+                continue; 
+            const auto& i = intervals[vreg];
+            if (interval.overlaps(i)) {
+                assign_vreg_stack_slot(vreg);
+            }
+        }
+    };
+    auto get_reg = [&](const Interval& interval) -> Reg {
+        for (auto reg : regs_used) {
+            if (is_reg_conflict(reg, interval)) continue;
+            return reg;
+        }
+        for (auto reg : regs_going_to_be_used) {
+            if (is_reg_conflict(reg, interval)) continue;
+            return reg;
+        }
+        // randomly pick a reg
+        auto reg = regs_going_to_be_used[rand() % regs_going_to_be_used.size()];
+        move_conflict_vreg_to_stack(reg, interval);
+        return reg;
+    };
+
+    if (call_inst_names.size() > 0) {
+        vreg_to_reg.insert({"ra", Reg("ra")});
+        assign_vreg_stack_slot("ra");
+    }
     int args_nums = current_function->get_num_of_args();
     for (int i = 0; i < args_nums; i++) {
         const auto op = fmt::format("arg{}", i);
         pair_vreg_reg(op, Reg(10 + i));
     }
+
     for (int i = 8; i < args_nums; i++) {
         const auto op = fmt::format("arg{}", i);
         vreg_to_stack_slot.insert({op, Addr(Reg(8), (i - 8) * 4)});
     }
 
     for (const auto& op : unhandled) {
+        // std::cerr << "handling interval " << op << std::endl;
         const auto& interval = intervals[op];
         int pos = interval.ranges.begin()->first;
 
-        // active -> active, inactive, handled
-        for (const auto& vreg : active) {
-            const auto& i = intervals[vreg];
+        // active -> active, inactive
+        for (auto vreg_iter = active.begin(); vreg_iter != active.end(); ) {
+            if (vreg_to_stack_slot.contains(*vreg_iter)) {
+                vreg_iter = active.erase(vreg_iter);
+                continue;
+            }
+            const auto& i = intervals.at(*vreg_iter);
+            auto it = i.ranges.lower_bound({pos, 0});
+            if (it == i.ranges.begin()) {
+                assert(i.ranges.begin()->first == pos);
+                continue;
+            }
+            --it;
+            if (it->second <= pos) { // inactive
+                // std::cerr << "inactivate " << *vreg_iter << std::endl;
+                reg_to_vreg.erase(vreg_to_reg.at(*vreg_iter));
+                inactive.insert(*vreg_iter);
+                vreg_iter = active.erase(vreg_iter);
+            } else {
+                ++vreg_iter;
+            }
+        }
+        // inactive -> inactive, active
+        for (auto vreg_iter = inactive.begin(); vreg_iter != inactive.end(); ) {
+            if (vreg_to_stack_slot.contains(*vreg_iter)) {
+                vreg_iter = active.erase(vreg_iter);
+                continue;
+            }
+            const auto& i = intervals.at(*vreg_iter);
             auto it = i.ranges.lower_bound({pos, 0});
             assert(it != i.ranges.begin());
             --it;
-            if (it->second <= pos) {
-                reg_to_vreg.erase(vreg_to_reg.at(vreg));
+            if (pos < it->second) { // active
+                // std::cerr << "activate " << *vreg_iter << std::endl;
+                auto reg = vreg_to_reg.at(*vreg_iter);
+                assert(!reg_to_vreg.contains(reg));
+                reg_to_vreg.insert({reg, *vreg_iter});
+                active.insert(*vreg_iter);
+                vreg_iter = inactive.erase(vreg_iter);
+            } else {
+                ++vreg_iter;
             }
         }
+        auto remove_handled_element = [this, pos](std::set<std::string>& s) {
+            for (auto it = s.begin(); it != s.end();) {
+                if (intervals[*it].ranges.rbegin()->second <= pos) {
+                    s.erase(it++);
+                } else {
+                    ++it;
+                }
+            }
+        };
+        remove_handled_element(active);
+        remove_handled_element(inactive);
 
-        // inactive -> active, handled
+        // std::cerr << "active: "; for (const auto& vreg: active) std::cerr << vreg << ' '; std::cerr << std::endl;
+        // std::cerr << "inactive: "; for (const auto& vreg: inactive) std::cerr << vreg << ' '; std::cerr << std::endl;
+        // std::cerr << "registers: "; for (const auto& kv : reg_to_vreg) std::cerr << kv.first.get_name() << "->" << kv.second << ' '; std::cerr << std::endl;
 
-        // TODO
+        if (call_inst_names.contains(op)) {
+            // std::cerr << "handling call inst " << op << std::endl;
+            
+            auto i = Interval(); i.addRange(pos, pos);
+            for (const auto& reg : caller_save_regs) {
+                move_conflict_vreg_to_stack(reg, i);
+            }
+            if (op.starts_with("op")) {
+                pair_vreg_reg(op, Reg(10));
+                active.insert(op);
+            }
+        } else if (op.starts_with("arg")) {
+        } else {
+            if (alloca_inst_to_bytes.contains(op)) {
+                alloca_to_stack_slot.insert({op, alloca_stack_slot(alloca_inst_to_bytes.at(op))});
+            } else {
+                auto reg = get_reg(interval);
+                // std::cerr << "assign " << reg.get_name() << " to " << op << std::endl;
+                pair_vreg_reg(op, reg);
+                active.insert(op);
+            }
+        }
     }
-    std::cerr << "Linear scan done" << std::endl << std::endl;
+
+    for (auto reg : regs_used) {
+        if (reg.getID() == 9 || (18 <= reg.getID() && reg.getID() <= 27)) {
+            assign_vreg_stack_slot(reg.get_name());
+        }
+    }
+    if (offset != 0) {
+        assign_vreg_stack_slot("fp");
+    }
+    stack_size = -offset;
+    stack_size = (stack_size + 15) & ~15;
+
+    // std::cerr << "Linear scan result" << std::endl;
+    // std::cerr << "stack size: " << stack_size << std::endl;
+    // for (const auto& kv : vreg_to_reg) {
+    //     std::cerr << kv.first << " -> " << kv.second.get_name() << std::endl;
+    // }
+    // for (const auto& kv : vreg_to_stack_slot) {
+    //     std::cerr << kv.first << " -> " << kv.second.get_name() << std::endl;
+    // }
+    // for (const auto& kv : alloca_to_stack_slot) {
+    //     std::cerr << kv.first << " -> " << kv.second.get_name() << std::endl;
+    // }
+
+    // std::cerr << "Linear scan done" << std::endl << std::endl;
 }
 
 string CodeGen::generateFunctionCode(Function *func) {
-    // std::cerr << "Generating code for function " << func->get_name() << std::endl;
-    // 注意这里没有保存 a0, a1, a2, a3, a4, a5, a6, a7
-    // 因为函数生成 LLVM IR 时会给每个参数 %opx = alloca i32; store %arg, ptr %opx
-    // 所以他们只会在函数最初 alloca-store 时被使用
+    using Reg = InstGen::Reg;
+    using Addr = InstGen::Addr;
     current_function = func;
 
     // lifetime analysis
     lifetimeAnalysis();
 
     // register allocation
-    // linearScan();
+    linearScan();
 
     string asm_code;
     asm_code += fmt::format(".globl {}\n{}:\n", func->get_name(), func->get_name());
 
-    stack_size = 0;
+    phi_store.clear();
     for(auto b : func->get_basic_blocks()) {
         for (auto i : b->get_instructions()) {
-            if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
-                stack_size += getTypeSizeInBytes(alloca->get_alloca_type());
-            } else {
-                stack_size += 4;
-            }
-        }
-    }
-    stack_size += 2 * 4; // %sp %fp
-    stack_size = (stack_size + 15) & ~15;
-    // std::cerr << "Stack size: " << stack_size << std::endl;
-
-    register_mapping.clear();
-    stack_mapping.clear();
-    alloca_mapping.clear();
-    int offset = -stack_size;
-    for(auto b : func->get_basic_blocks()) {
-        for (auto i : b->get_instructions()) {
-            if (auto alloca = dynamic_cast<AllocaInst*>(i); alloca) {
-                alloca_mapping[alloca->get_name()] = offset;
-                offset += getTypeSizeInBytes(alloca->get_alloca_type());
-                // std::cerr << "Alloca " << alloca->get_name() << ": " << alloca_mapping[alloca->get_name()] << std::endl;
-            } else {
-                stack_mapping[i->get_name()] = offset;
-                offset += 4;
-                // std::cerr << "Stack " << i->get_name() << ": " << stack_mapping[i->get_name()] << std::endl;
-            }
-
-            // create lw for phi nodes at the end of basic block
             if (auto phi = dynamic_cast<PhiInst*>(i); phi) {
+                if (!vreg_to_reg.contains(phi->get_name())) continue;
                 auto ops = phi->get_operands();
                 assert(phi->get_operands().size() == 4);
                 assert(dynamic_cast<BasicBlock*>(ops[1]) && dynamic_cast<BasicBlock*>(ops[3]));
@@ -483,38 +649,68 @@ string CodeGen::generateFunctionCode(Function *func) {
                 auto b1 = (BasicBlock*)ops[1];
                 auto v2 = ops[2];
                 auto b2 = (BasicBlock*)ops[3];
-                int offset = stack_mapping[phi->get_name()];
-                phi_store[b1].push_back({v1, offset});
-                phi_store[b2].push_back({v2, offset});
+                phi_store[b1].push_back({v1, phi->get_name()});
+                phi_store[b2].push_back({v2, phi->get_name()});
             }
         }
     }
-    int args = func->get_num_of_args();
-    for (int i = 0; i < std::min(args, 8); i++) {
-        register_mapping[fmt::format("arg{}", i)] = i + 10;
-    }
-    if (args > 8) {
-        for(int i = 8; i < args; i++) {
-            stack_mapping[fmt::format("arg{}", i)] = (i-8) * 4;
+
+    const Reg fp = Reg("fp");
+    const Reg sp = Reg("sp");
+    const Reg t0 = Reg("t0");
+    if (stack_size != 0) {
+        asm_code += regToStack(Reg("fp"), Addr(sp, vreg_to_stack_slot.at("fp").getOffset()));
+        asm_code += backend->emit_mv(fp, sp);
+        if (-2048 <= -stack_size) {
+            asm_code += backend->emit_addi(sp, sp, -stack_size);
+        } else {
+            asm_code += backend->emit_li(t0, -stack_size);
+            asm_code += backend->emit_add(sp, sp, t0);
+        }
+    } else {
+        for (auto& kv : vreg_to_stack_slot) {
+            kv.second.setReg(sp);
         }
     }
+    const int callee_save_regs[] = {9, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27};
+    for (auto reg : callee_save_regs) {
+        if (vreg_to_stack_slot.contains(reg_name[reg])) {
+            asm_code += regToStack(Reg(reg), vreg_to_stack_slot.at(reg_name[reg]));
+        }
+    }
+    if (vreg_to_stack_slot.contains("ra")) {
+        asm_code += regToStack("ra");
+    }
 
-    asm_code += fmt::format("  sw ra, {}(sp)\n", -4);
-    asm_code += fmt::format("  sw fp, {}(sp)\n", -8);
-    asm_code += fmt::format("  addi fp, sp, 0\n");
-    asm_code += fmt::format("  li t0, {}\n", stack_size);
-    asm_code += fmt::format("  sub sp, sp, t0\n");
-
+    for (int i = 0; i < std::min(8u, func->get_num_of_args()); i++) {
+        auto it = vreg_to_stack_slot.find(fmt::format("arg{}", i));
+        if (it != vreg_to_stack_slot.end()) {
+            asm_code += regToStack(Reg(10+i), it->second);
+        }
+    }
     for(auto b : func->get_basic_blocks()) {
         asm_code += fmt::format("{}:\n", getLabelName(b), b->get_name());
         asm_code += generateBasicBlockCode(b);
     }
 
     asm_code += fmt::format("{}$return:\n", func->get_name());
-    asm_code += fmt::format("  li t0, {}\n", stack_size);
-    asm_code += fmt::format("  add sp, sp, t0\n");
-    asm_code += fmt::format("  lw fp, {}(sp)\n", -8);
-    asm_code += fmt::format("  lw ra, {}(sp)\n", -4);
+    if (vreg_to_stack_slot.contains("ra")) {
+        asm_code += stackToReg(vreg_to_stack_slot.at("ra"), Reg("ra"));
+    }
+    for (auto reg : callee_save_regs) {
+        if (vreg_to_stack_slot.contains(reg_name[reg])) {
+            asm_code += stackToReg(vreg_to_stack_slot.at(reg_name[reg]), Reg(reg));
+        }
+    }
+    if (stack_size != 0) {
+        asm_code += stackToReg(vreg_to_stack_slot.at("fp"), fp);
+        if (-2048 <= -stack_size) {
+            asm_code += backend->emit_addi(sp, sp, stack_size);
+        } else {
+            asm_code += backend->emit_li(t0, stack_size);
+            asm_code += backend->emit_add(sp, sp, t0);
+        }
+    }
     asm_code += fmt::format("  ret\n");
     return asm_code;
 }
@@ -538,15 +734,20 @@ string CodeGen::generateBasicBlockPostCode(BasicBlock *bb) {
     std::string asm_code;
     if (phi_store.contains(bb)) {
         for(auto& kv : phi_store.at(bb)) {
-            auto v = kv.first;
-            auto offset = kv.second;
-            asm_code += valueToReg(v, 5);
-            asm_code += regToStack(5, offset);
+            auto src = kv.first;
+            const auto& dst = kv.second;
+            auto rd = getReg(dst);
+            asm_code += vregToReg(src, rd);
+            if (vreg_to_stack_slot.contains(dst)) {
+                asm_code += regToStack(dst);
+            }
         }
     }
     return asm_code;
 }
 string CodeGen::generateInstructionCode(Instruction *inst) {
+    using Reg = InstGen::Reg;
+    using Addr = InstGen::Addr;
     // std::cerr << inst->print() << std::endl;
     std::string asm_code;
     auto &ops = inst->get_operands();
@@ -554,7 +755,7 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
         case lightir::Instruction::Ret: {
             assert(ops.size() == 0 || ops.size() == 1);
             if (ops.size() == 1) {
-                asm_code += valueToReg(ops[0], 10);
+                asm_code += vregToReg(ops[0], Reg(10));
             }
             asm_code += fmt::format("  j {}$return\n", current_function->get_name());
             break;
@@ -566,9 +767,11 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
                 assert(dynamic_cast<BasicBlock*>(ops[0]));
                 asm_code += fmt::format("  j {}\n", getLabelName((BasicBlock*)ops[0]));
             } else if (ops.size() == 3) {
-                asm_code += valueToReg(ops[0], 5);
-                asm_code += fmt::format("  beq t0, zero, {}\n", getLabelName((BasicBlock*)ops[2]));
-                asm_code += fmt::format("  j {}\n", getLabelName((BasicBlock*)ops[1]));
+                assert(dynamic_cast<BasicBlock*>(ops[1]));
+                auto rs = getReg(ops[0]->get_name());
+                asm_code += vregToReg(ops[0], rs);
+                asm_code += backend->emit_beq(rs, Reg(0), Addr(getLabelName((BasicBlock*)ops[2])));
+                asm_code += backend->emit_j(getLabelName((BasicBlock*)ops[1]));
             } else {
                 assert(0);
             }
@@ -576,13 +779,18 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
         }
         case lightir::Instruction::Neg:
         case lightir::Instruction::Not: {
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
             assert(ops.size() == 1);
-            asm_code += valueToReg(ops[0], 5);
+            auto rs = getReg(ops[0]->get_name());
+            asm_code += vregToReg(ops[0], rs);
             if (inst->get_instr_type() == lightir::Instruction::Not)
-                asm_code += "  xori t0, t0, 1\n";
+                asm_code += backend->emit_xori(rd, rs, 1);
             else
-                asm_code += "  neg t0, t0\n";
-            asm_code += regToStack(5, inst->get_name());
+                asm_code += backend->emit_neg(rd, rs);
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::Add:
@@ -592,6 +800,8 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
         case lightir::Instruction::Rem:
         case lightir::Instruction::And:
         case lightir::Instruction::Or: {
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
             char const * asm_inst_name;
             switch (inst->get_instr_type()) {
                 case lightir::Instruction::Add: asm_inst_name = "add"; break;
@@ -604,66 +814,106 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
                 default: assert(0);
             }
             assert(ops.size() == 2);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += fmt::format("  {} t0, t0, t1\n", asm_inst_name);
-            asm_code += regToStack(5, inst->get_name());
+            auto rs1 = getReg(ops[0]->get_name(), 5);
+            auto rs2 = getReg(ops[1]->get_name(), 6);
+            asm_code += vregToReg(ops[0], rs1);
+            asm_code += vregToReg(ops[1], rs2);
+            asm_code += fmt::format("  {} {}, {}, {}\n", asm_inst_name, rd.get_name(), rs1.get_name(), rs2.get_name());
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::Alloca: {
             break;
         }
         case lightir::Instruction::Load: {
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
             assert(ops.size() == 1);
             string op = ops[0]->get_name();
             if (inst->get_type()->print() == "i8") {
-                asm_code += valueToReg(ops[0], 5);
-                asm_code += "  lbu t1, 0(t0)\n";
-                asm_code += "  andi t1, t1, 255	\n";
-                asm_code += regToStack(6, inst->get_name());
+                auto rs = getReg(op);
+                asm_code += vregToReg(ops[0], rs);
+                asm_code += backend->emit_lbu(rd, rs, 0);
+                asm_code += backend->emit_andi(rd, rd, 255);
             } else {
-                if (alloca_mapping.contains(op)) {
-                    asm_code += stackToReg(alloca_mapping.at(op), 6);
+                if (alloca_to_stack_slot.contains(op)) {
+                    asm_code += stackToReg(alloca_to_stack_slot.at(op), rd);
                 } else if (GOT.contains(op)) {
-                    asm_code += fmt::format("  lui t1, %hi({})\n  lw t1, %lo({})(t1)\n", op, op);
+                    // asm_code += fmt::format("  lui t1, %hi({})\n  lw t1, %lo({})(t1)\n", op, op);
+                    const auto rd_name = rd.get_name();
+                    asm_code += fmt::format("  lui {}, %hi({})\n  lw {}, %lo({})({})\n", rd_name, op, rd_name, op, rd_name);
                 } else {
-                    asm_code += valueToReg(ops[0], 5);
-                    asm_code += fmt::format("  lw t1, 0(t0)\n");
+                    auto rs = getReg(op);
+                    asm_code += vregToReg(ops[0], rs);
+                    asm_code += backend->emit_lw(rd, rs, 0);
                 }
-                asm_code += regToStack(6, inst->get_name());
+            }
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
             }
             break;
         }
         case lightir::Instruction::Store: {
-            asm_code += valueToReg(ops[0],  5);
-            asm_code += valueToReg(ops[1], 6);
-            asm_code += fmt::format("  sw t0, 0(t1)\n");
+            auto vreg = ops[0];
+            auto rs1 = Reg(5);
+
+            if (dynamic_cast<ConstantNull*>(vreg)) {
+                asm_code += backend->emit_li(rs1, 0);
+            } else if (auto c = dynamic_cast<ConstantInt*>(vreg); c) {
+                asm_code += backend->emit_li(rs1, c->get_value());
+            } else if (auto a = dynamic_cast<AllocaInst*>(vreg)) {
+                assert(stack_size != 0);
+                asm_code += backend->emit_addi(rs1, InstGen::Reg("fp"), alloca_to_stack_slot.at(a->get_name()).getOffset());
+            } else if (auto cls = dynamic_cast<Class*>(vreg); cls) {
+                asm_code += backend->emit_la(rs1, InstGen::Addr(cls->prototype_label_));
+            } else if (auto name = vreg->get_name(); GOT.contains(name)) {
+                asm_code += backend->emit_la(rs1, InstGen::Addr(name));
+            } else {
+                rs1 = getReg(vreg->get_name());
+                asm_code += vregToReg(vreg, rs1);
+            }
+
+            if (dynamic_cast<AllocaInst*>(ops[1])) {
+                asm_code += regToStack(rs1, alloca_to_stack_slot.at(ops[1]->get_name()));
+            } else {
+                auto rs2 = getReg(ops[1]->get_name(), 6);
+                asm_code += vregToReg(ops[1], rs2);
+                asm_code += regToStack(rs1, InstGen::Addr(rs2, 0));
+            }
             break;
         }
         case lightir::Instruction::ICmp: {
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
             auto op = ((CmpInst*)inst)->get_cmp_op();
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += valueToReg(ops[1], 6);
+            auto rs1 = getReg(ops[0]->get_name(), 5);
+            auto rs2 = getReg(ops[1]->get_name(), 6);
+            asm_code += vregToReg(ops[0], rs1);
+            asm_code += vregToReg(ops[1], rs2);
             if (op == CmpInst::EQ) {
-                asm_code += fmt::format("  xor t0, t0, t1\n");
-                asm_code += fmt::format("  seqz t0, t0\n");
+                asm_code += backend->emit_xor(rd, rs1, rs2);
+                asm_code += backend->emit_seqz(rd, rd);
             } else if (op == CmpInst::NE) {
-                asm_code += fmt::format("  xor t0, t0, t1\n");
-                asm_code += fmt::format("  snez t0, t0\n");
+                asm_code += backend->emit_xor(rd, rs1, rs2);
+                asm_code += backend->emit_snez(rd, rd);
             } else if (op == CmpInst::LT) {
-                asm_code += fmt::format("  slt t0, t0, t1\n");
+                asm_code += backend->emit_slt(rd, rs1, rs2);
             } else if (op == CmpInst::LE) {
-                asm_code += fmt::format("  slt t0, t1, t0\n");
-                asm_code += fmt::format("  xori t0, t0, 1\n");
+                asm_code += backend->emit_slt(rd, rs2, rs1);
+                asm_code += backend->emit_xori(rd, rd, 1);
             } else if (op == CmpInst::GT) {
-                asm_code += fmt::format("  slt t0, t1, t0\n");
+                asm_code += backend->emit_slt(rd, rs2, rs1);
             } else if (op == CmpInst::GE) {
-                asm_code += fmt::format("  slt t0, t0, t1\n");
-                asm_code += fmt::format("  xori t0, t0, 1\n");
+                asm_code += backend->emit_slt(rd, rs1, rs2);
+                asm_code += backend->emit_xori(rd, rd, 1);
             } else {
                 assert(0);
             }
-            asm_code += regToStack(5, inst->get_name());
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::PHI: {
@@ -675,56 +925,80 @@ string CodeGen::generateInstructionCode(Instruction *inst) {
                 asm_code += generateFunctionCall(inst, fmt::format("  call {}\n", func_name), ops);
             } else {
                 assert(ops[0]->print() != "");
-                asm_code += valueToReg(ops[0], 6);
+                asm_code += vregToReg(ops[0], Reg(6));
                 asm_code += generateFunctionCall(inst, fmt::format("  jalr t1\n"), ops);
             }
-            asm_code += regToStack(10, inst->get_name());
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::GEP: {
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
             auto gep = (GetElementPtrInst*)inst;
             auto ptr = ops[0];
-            assert(dynamic_cast<ArrayType*>(ptr->get_type())  && ((ArrayType*)ptr->get_type())->get_num_of_elements() == -1);
+            assert(dynamic_cast<ArrayType*>(ptr->get_type()) && ((ArrayType*)ptr->get_type())->get_num_of_elements() == -1);
             auto inner_type = ((ArrayType*)ptr->get_type())->get_element_type();
             if (dynamic_cast<Class*>(inner_type) || inner_type->print().ends_with("$dispatchTable_type")) {
                 // it seems that every attribute is 4 bytes
                 assert(dynamic_cast<ConstantInt*>(ops[1]));
                 auto idx = ((ConstantInt*)ops[1])->get_value();
-                asm_code += valueToReg(ptr, 5);
-                asm_code += fmt::format("  addi t0, t0, {}\n", idx * 4);
-                asm_code += regToStack(5, gep->get_name());
+                auto rs = getReg(ptr->get_name());
+                asm_code += vregToReg(ptr, rs);
+                asm_code += backend->emit_addi(rd, rs, idx * 4);
             } else if (inner_type->print() == "%$union.conslist") {
-                asm_code += valueToReg(ptr, 5);
-                asm_code += valueToReg(ops[1], 6);
-                asm_code += "  slli t1, t1, 2\n";
-                asm_code += "  add t0, t0, t1\n";
-                asm_code += regToStack(5, gep->get_name());
+                auto rs1 = getReg(ptr->get_name());
+                asm_code += vregToReg(ptr, rs1);
+                auto rs2 = getReg(ops[1]->get_name());
+                asm_code += vregToReg(ops[1], rs2);
+                auto t0 = Reg(5);
+                asm_code += backend->emit_slli(t0, rs2, 2);
+                asm_code += backend->emit_add(rd, rs1, t0);
             } else if (auto i = dynamic_cast<IntegerType*>(inner_type)) {
-                asm_code += valueToReg(ptr, 5);
-                asm_code += valueToReg(ops[1], 6);
+                auto rs1 = getReg(ptr->get_name());
+                asm_code += vregToReg(ptr, rs1);
+                auto rs2 = getReg(ops[1]->get_name());
+                asm_code += vregToReg(ops[1], rs2);
+                auto t0 = Reg(5);
                 if (i->get_num_bits() == 32 || i->get_num_bits() == 1) {
+                    asm_code += backend->emit_slli(t0, rs2, 2);
                     asm_code += "  slli t1, t1, 2\n";
+                    asm_code += backend->emit_add(rd, rs1, t0);
                 } else {
                     assert(i->get_num_bits() == 8);
+                    asm_code += backend->emit_add(rd, rs1, rs2);
                 }
-                asm_code += "  add t0, t0, t1\n";
-                asm_code += regToStack(5, gep->get_name());
-
             } else {
                 std::cerr << inner_type->print() << std::endl;
                 assert(0 && "not implemented");
             }
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::ZExt: {
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
             assert(ops.size() == 1);
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += regToStack(5, inst->get_name());
+            auto rs = getReg(ops[0]->get_name());
+            asm_code += vregToReg(ops[0], rs);
+            if (rd != rs) {
+                asm_code += backend->emit_mv(rd, rs);
+            }
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::BitCast: {
-            asm_code += valueToReg(ops[0], 5);
-            asm_code += regToStack(5, inst->get_name());
+            if (!vreg_to_reg.contains(inst->get_name())) break;
+            Reg rd = vreg_to_reg.at(inst->get_name());
+            asm_code += vregToReg(ops[0], rd);
+            if (vreg_to_stack_slot.contains(inst->get_name())) {
+                asm_code += regToStack(inst->get_name());
+            }
             break;
         }
         case lightir::Instruction::ASM: {
@@ -756,25 +1030,35 @@ string CodeGen::getLabelName(Function *func, int type) {
     return "." + func->get_name() + "_" + name_list.at(type);
 }
 string CodeGen::generateFunctionCall(Instruction *inst, const string &call_inst, vector<Value *> ops) {
+    using Reg = InstGen::Reg;
+    using Addr = InstGen::Addr;
     // ops[0] is the function
     std::string asm_code;
     int args = ops.size() - 1;
     int sp_delta = 0;
+    auto t0 = InstGen::Reg(5);
 
-    for (int i = 0; i < std::min(8, args); i++) {
-        asm_code += valueToReg(ops[i+1], 10 + i);
-    }
     if (args > 8) {
         args -= 8;
         sp_delta = args * 4;
         asm_code += fmt::format("  addi sp, sp, {}\n", -sp_delta);
         for (int i = 0; i < args; i++) {
             auto arg = ops[i+9];
-            asm_code += valueToReg(arg, 5);
+            asm_code += vregToReg(arg, t0);
             asm_code += fmt::format("  sw t0, {}(sp)\n", i * 4);
         }
     }
-    
+
+    // TODO: optimize
+    for (int i = 0; i < std::min(8, args); i++) {
+        auto rs = getReg(ops[i+1]->get_name());
+        asm_code += vregToReg(ops[i+1], rs);
+        asm_code += regToStack(rs, Addr(Reg("sp"), -(i+1)*4));
+    }
+    for (int i = 0; i < std::min(8, args); i++) {
+        asm_code += stackToReg(Addr(Reg("sp"), -(i+1)*4), Reg(10+i));
+    }
+
     asm_code += call_inst;
     
     if (sp_delta != 0) {
