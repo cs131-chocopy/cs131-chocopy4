@@ -501,7 +501,7 @@ public:
      * COMMENT is an optional one-line comment (null if missing).
      */
     static string emit_lbu(const InstGen::Reg &rd, const InstGen::Reg &rs, const int &imm, string comment = "") {
-        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lbu {}, {}, {}", rd.get_name(), imm, rs.get_name()),
+        return fmt::format("  {:<40}#{:<42}\n", fmt::format("lbu {}, {}({})", rd.get_name(), imm, rs.get_name()),
                            comment);
     }
 
