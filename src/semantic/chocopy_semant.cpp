@@ -505,7 +505,7 @@ void TypeChecker::visit(parser::ForStmt &node)
     for(auto s:*node.body) {
         s->accept(*this);
     }
-    node.identifier->accept(*this);
+    is_lvalue = true; node.identifier->accept(*this); is_lvalue = false;
     auto Q = sym->get<ClassValueType*>(node.identifier->name);
     if (Q==nullptr) {
         typeError(&node,fmt::format("id {} in for statement does not exists or is not a ClassDefType.",node.identifier->name));
