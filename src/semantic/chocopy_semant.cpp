@@ -607,7 +607,6 @@ void TypeChecker::visit(parser::Ident &node) {
         }
     } else {
         if (type->is_value_type()) {
-            is_lvalue = false;
             node.inferredType = type;
         } else {
             this->errors->push_back(new SemanticError(&node,fmt::format("Not a variable: {}", node.name)));
