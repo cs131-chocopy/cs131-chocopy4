@@ -89,4 +89,34 @@ string ConstantStr::print() {
     }
     return const_ir;
 }
+
+ConstantBoxInt *ConstantBoxInt::get(Class* int_class, int val, int id) {
+    return new ConstantBoxInt(int_class, val, id);
+}
+string ConstantBoxInt::print() {
+    string const_ir;
+    if (header_print_) {
+        const_ir += "@const_" + std::to_string(id_) + " = global %$int$prototype_type {\n" +
+                    fmt::format("  i32 1,\n  i32 4,\n  %$int$dispatchTable_type* @$int$dispatchTable,\n  i32 {}\n}}", value_);
+        header_print_ = false;
+    } else {
+        const_ir += fmt::format("@const_{}", id_);
+    }
+    return const_ir;
+}
+
+ConstantBoxBool *ConstantBoxBool::get(Class* bool_class, bool val, int id) {
+    return new ConstantBoxBool(bool_class, val, id);
+}
+string ConstantBoxBool::print() {
+    string const_ir;
+    if (header_print_) {
+        const_ir += "@const_" + std::to_string(id_) + " = global %$bool$prototype_type {\n" +
+                    fmt::format("  i32 2,\n  i32 4,\n  %$bool$dispatchTable_type* @$bool$dispatchTable,\n  i1 {}\n}}", (int)value_);
+        header_print_ = false;
+    } else {
+        const_ir += fmt::format("@const_{}", id_);
+    }
+    return const_ir;
+}
 } // namespace lightir

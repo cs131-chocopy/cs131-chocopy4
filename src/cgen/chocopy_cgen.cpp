@@ -1070,20 +1070,17 @@ string CodeGen::generateGlobalVarsCode() {
     GOT.clear();
     string asm_code;
     for (auto &global_var : this->module->get_global_variable()) {
-        if (global_var->init_val_ != nullptr) {
-            GOT[global_var->get_name()] = 1;
-            asm_code += fmt::format(".globl {}\n", global_var->get_name());
-            if (dynamic_cast<ConstantStr *>(global_var->init_val_)) {
-                asm_code += ".p2align 2\n";
-            }
-            asm_code += global_var->get_name() + ":\n";
-            if (reinterpret_cast<Type *>(!global_var->get_type()->get_ptr_element_type()) ==
-                global_var->get_operands().at(0)->get_type()) {
-                asm_code += "  .zero " + std::to_string(global_var->get_type()->get_size()) + "\n";
-            } else {
-                asm_code +=
-                    CodeGen::generateInitializerCode(dynamic_cast<Constant *>(global_var->get_operands().at(0)));
-            }
+        if (global_var->init_val_ == nullptr) continue;
+        GOT[global_var->get_name()] = 1;
+        asm_code += fmt::format(".globl {}\n", global_var->get_name());
+        asm_code += ".p2align 2\n";
+        asm_code += global_var->get_name() + ":\n";
+        if (reinterpret_cast<Type *>(!global_var->get_type()->get_ptr_element_type()) ==
+            global_var->get_operands().at(0)->get_type()) {
+            asm_code += "  .zero " + std::to_string(global_var->get_type()->get_size()) + "\n";
+        } else {
+            asm_code +=
+                CodeGen::generateInitializerCode(dynamic_cast<Constant *>(global_var->get_operands().at(0)));
         }
     }
     LOG(INFO) << asm_code;
@@ -1121,6 +1118,16 @@ string CodeGen::generateInitializerCode(Constant *init) {
         }
         asm_code += "\"\n";
         asm_code += "\n";
+    } else if (auto box_int = dynamic_cast<ConstantBoxInt*>(init); box_int) {
+        asm_code += "  .word 1\n";
+        asm_code += "  .word 4\n";
+        asm_code += "  .word $int$dispatchTable\n";
+        asm_code += fmt::format("  .word {}\n", box_int->get_value());
+    } else if (auto box_bool = dynamic_cast<ConstantBoxBool*>(init); box_bool) {
+        asm_code += "  .word 2\n";
+        asm_code += "  .word 4\n";
+        asm_code += "  .word $bool$dispatchTable\n";
+        asm_code += fmt::format("  .word {}\n", (int)box_bool->get_value());
     } else {
         auto val = CodeGen::getConstIntVal(init);
         if (!val.second) {

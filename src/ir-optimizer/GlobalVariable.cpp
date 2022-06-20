@@ -1,5 +1,6 @@
 #include "GlobalVariable.hpp"
 
+#include "Constant.hpp"
 #include "IRprinter.hpp"
 #include <utility>
 namespace lightir {
@@ -19,6 +20,13 @@ GlobalVariable *GlobalVariable::create(const string &name, Module *m, Type *ty, 
 GlobalVariable *GlobalVariable::create(const string &name, Module *m, ConstantStr *init) {
     return new GlobalVariable(name, m, init->get_type(), true, init);
 }
+GlobalVariable *GlobalVariable::create(const string &name, Module *m, ConstantBoxInt *init) {
+    return new GlobalVariable(name, m, init->get_type(), true, init);
+}
+GlobalVariable *GlobalVariable::create(const string &name, Module *m, ConstantBoxBool *init) {
+    return new GlobalVariable(name, m, init->get_type(), true, init);
+}
+
 
 void GlobalVariable::set_list(const vector<Constant *> &new_array) const {
     ((ConstantArray *)this->init_val_)->set_const_array(new_array);
@@ -31,7 +39,7 @@ string GlobalVariable::print() {
         global_ir += fmt::format("@{} = external global {}", this->name_, this->type_->print());
         return global_ir;
     }
-    if (dynamic_cast<ConstantStr *>(this->init_val_)) {
+    if (dynamic_cast<ConstantStr *>(this->init_val_) || dynamic_cast<ConstantBoxInt*>(this->init_val_) || dynamic_cast<ConstantBoxBool*>(this->init_val_)) {
         global_ir += this->init_val_->print();
         return global_ir;
     }

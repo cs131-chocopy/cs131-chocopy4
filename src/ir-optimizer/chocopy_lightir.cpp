@@ -60,7 +60,7 @@ bool is_global_conslist = false;
 /** Function that is being built */
 Function *curr_func = nullptr;
 
-bool enable_str_for = true;
+bool enable_str_for;
 
 /** Use the symbol table to generate the type id */
 int LightWalker::get_next_type_id() { return next_type_id++; }
@@ -1318,6 +1318,37 @@ void LightWalker::visit(parser::UnaryExpr &node)
     }
     visitor_return_value = res;
 }
+GlobalVariable* LightWalker::generate_init_object(parser::Literal *literal) {
+    int const_id=get_const_type_id();
+    string const_name = "const_"+std::to_string(const_id);
+    if (auto s = dynamic_cast<parser::StringLiteral*>(literal); s) {
+        auto g=GlobalVariable::create(
+            const_name,
+            module.get(),
+            ConstantStr::get(s->value,const_id,module.get())
+        );
+        g->set_type(ptr_vstr_type);
+        return g;
+    } else if (auto i = dynamic_cast<parser::IntegerLiteral*>(literal); i) {
+        auto g = GlobalVariable::create(
+            const_name,
+            module.get(),
+            ConstantBoxInt::get(int_class, i->int_value, const_id)
+        );
+        g->set_type(ArrayType::get(int_class));
+        return g;
+    } else if (auto b = dynamic_cast<parser::BoolLiteral*>(literal); b) {
+        auto g = GlobalVariable::create(
+            const_name,
+            module.get(),
+            ConstantBoxBool::get(bool_class, b->bin_value, const_id)
+        );
+        g->set_type(ArrayType::get(bool_class));
+        return g;
+    } else {
+        assert(0);
+    }
+}
 void LightWalker::visit(parser::VarDef & node) 
 {
     if (scope.in_global()) {
@@ -1340,29 +1371,12 @@ void LightWalker::visit(parser::VarDef & node)
                 false,
                 ConstantInt::get(b->bin_value,module.get())
                 );
-        } else if (node.var->type->get_name()=="str") {
-            auto s = dynamic_cast<parser::StringLiteral*>(node.value);
-            int id=get_const_type_id();
-            auto g=GlobalVariable::create(
-                "const_"+std::to_string(id),
-                module.get(),
-                ConstantStr::get(s->value,id,module.get())
-            );
-            auto ptr_type = ptr_vstr_type;
-            g->set_type(ptr_type);
-            t = GlobalVariable::create(
-                node.var->identifier->name,
-                module.get(),
-                ptr_type,
-                false,
-                ConstantNull::get(ptr_type)
-            );
-            builder->create_store(g, t);
         } else if (node.var->type->kind == "ClassType") {
             const auto& class_name = node.var->type->get_name();
+            auto init_value_type_name = node.value->inferredType->get_name();
             const auto class_type = dynamic_cast<Class*>(scope.find_in_global(class_name));
             assert(class_type);
-            const auto var_type = ArrayType::get(class_type);
+            const auto var_type = init_value_type_name == "str" ? ptr_vstr_type : ArrayType::get(class_type);
             const auto init_val = ConstantNull::get(var_type);
             t = GlobalVariable::create(
                 node.var->identifier->name,
@@ -1371,7 +1385,14 @@ void LightWalker::visit(parser::VarDef & node)
                 false,
                 init_val
             );
-            builder->create_store(null, t);
+            if (init_value_type_name == "<None>") {
+                builder->create_store(null, t);
+            } else if (init_value_type_name == "int" || init_value_type_name == "str" || init_value_type_name == "bool") {
+                auto g= generate_init_object(node.value);
+                builder->create_store(g, t); // 这里为什么用 store 而不是直接给 t 一个初值呢？因为框架限制，ddl 到了没时间重构
+            } else {
+                assert(0);
+            }
         } else if (auto list_type=dynamic_cast<parser::ListType*>(node.var->type)) {
             auto ptr_list_type = ArrayType::get(list_class);
             t=GlobalVariable::create(
@@ -1400,25 +1421,23 @@ void LightWalker::visit(parser::VarDef & node)
                 ConstantInt::get(b->bin_value,module.get()),
                 t
             );
-        } else if (node.var->type->get_name()=="str") {
-            auto s = dynamic_cast<parser::StringLiteral*>(node.value);
-            int id=get_const_type_id();
-            auto g = GlobalVariable::create(
-                "const_"+std::to_string(id),
-                module.get(),
-                ConstantStr::get(s->value,id,module.get())
-            );
-            g->set_type(ptr_vstr_type);
-            t = builder->create_alloca(ptr_vstr_type);
-            builder->create_store(g, t);
         } else if (node.var->type->kind == "ClassType") {
             const auto& class_name = node.var->type->get_name();
+            auto init_value_type_name = node.value->inferredType->get_name();
             const auto class_type = dynamic_cast<Class*>(scope.find_in_global(class_name));
             assert(class_type);
-            const auto var_type = ArrayType::get(class_type);
-            const auto init_val = ConstantNull::get(var_type);
+            const auto var_type = init_value_type_name == "str" ? ptr_vstr_type : ArrayType::get(class_type);
             t = builder->create_alloca(var_type);
-            builder->create_store(init_val, t);
+
+            if (init_value_type_name == "<None>") {
+                const auto init_val = ConstantNull::get(var_type);
+                builder->create_store(init_val, t);
+            } else if (init_value_type_name == "int" || init_value_type_name == "str" || init_value_type_name == "bool") {
+                auto g= generate_init_object(node.value);
+                builder->create_store(g, t);
+            } else {
+                assert(0);
+            }
         } else if (auto list_type=dynamic_cast<parser::ListType*>(node.var->type)) {
             auto ptr_list_type = ArrayType::get(list_class);
             t = builder->create_alloca(ptr_list_type);

@@ -199,6 +199,7 @@ public:
     int get_const_type_id();
     int get_class_id(const string &name) const;
     string get_nested_func_name(semantic::FunctionDefType const * const, bool);
+    GlobalVariable* generate_init_object(parser::Literal* literal);
     Type* semantic_type_to_llvm_type(semantic::SymbolType *type);
     bool func_found = false;
     vector<parser::ClassDef *> *class_stack = new vector<parser::ClassDef *>();

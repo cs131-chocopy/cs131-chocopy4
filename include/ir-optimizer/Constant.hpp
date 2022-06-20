@@ -5,7 +5,6 @@
 #ifndef CHOCOPY_COMPILER_CONSTANT_HPP
 #define CHOCOPY_COMPILER_CONSTANT_HPP
 
-#include "Type.hpp"
 #include "User.hpp"
 #include "Value.hpp"
 #include <chocopy_parse.hpp>
@@ -16,6 +15,7 @@ using std::map;
 using std::string;
 using std::vector;
 namespace lightir {
+class Class;
 class Module;
 class ArrayType;
 class Constant : public User {
@@ -52,6 +52,38 @@ public:
     static ConstantInt *get(bool val, Module *m);
     void set_value(int value) { value_ = value; }
     string print() override;
+};
+
+class ConstantBoxInt : public Constant {
+private:
+    int value_;
+    int id_;
+    bool header_print_ = true;
+
+public:
+    static int get_value(ConstantBoxInt *const_val) { return const_val->value_; }
+    string get_name() override { return fmt::format("const_{}", id_); }
+    int get_value() const { return value_; }
+    int get_id() const { return id_; }
+    static ConstantBoxInt *get(Class* int_class, int val, int id);
+    string print() override;
+    ConstantBoxInt(Type *ty, int val, int id) : Constant(ty, "", 0), id_(id), value_(val) {}
+};
+
+class ConstantBoxBool : public Constant {
+private:
+    bool value_;
+    int id_;
+    bool header_print_ = true;
+
+public:
+    static int get_value(ConstantBoxBool *const_val) { return const_val->value_; }
+    string get_name() override { return fmt::format("const_{}", id_); }
+    int get_value() const { return value_; }
+    int get_id() const { return id_; }
+    static ConstantBoxBool *get(Class* bool_class, bool val, int id);
+    string print() override;
+    ConstantBoxBool(Type *ty, bool val, int id) : Constant(ty, "", 0), id_(id), value_(val) {}
 };
 
 class ConstantNull : public Constant {
