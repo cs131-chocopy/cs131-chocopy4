@@ -1,5 +1,19 @@
 # ChocoPy PA4
 
+**This is a project of ShanghaiTech CS131 Compiler course.**
+
+The code quality of the repo is not satisfying. And this repo would **not have any update** in the future.
+
+However, we are working on improving the code quality in another repo that is not yet published.
+Feel free to [contact me](mailto:huab@shanghaitech.edu.cn) if you are a staff of the compiler course in your university that want to use ChocoPy as your course project.
+
+**这是上海科技大学编译原理的课程项目**
+
+这个 repo 的代码质量一般，并且这个 repo 预期**不会有任何更新**。
+
+但是我们正在另一个还未公开的 repo 中重构代码。
+如果你想使用 ChocoPy 作为你们大学编译原理的课程项目，随时[联系我](mailto:huab@shanghaitech.edu.cn)。
+
 student1: huab@shanghaitech.edu.cn
 student2: zhangych6@shanghaitech.edu.cn
 
